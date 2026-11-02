@@ -106,7 +106,25 @@ BT-03-AI-IMAGE-ART-DECO/
 - `docs/report/` — báo cáo thiết kế và phân chia công việc
 - `docs/assets/` — sơ đồ kiến trúc, ERD, lưu đồ xử lý
 
-## 7. Giấy phép
+## 7. Nhánh làm việc
+
+Mỗi thành viên làm trên nhánh riêng, mở pull request vào `main`; `main` chỉ nhận code đã chạy được.
+Tên nhánh dùng dấu gạch nối vì git không cho phép khoảng trắng trong tên nhánh.
+
+| Nhánh | Thành viên | Module |
+|---|---|---|
+| `B4.1-ai-worker` | Võ Quốc Đạt | AI Worker & Model Engineering |
+| `B4.2-data-storage` | Nguyễn Thành Đô | Image Storage & Database |
+| `B4.3-frontend` | Nguyễn Văn Thái Hào | Frontend & Search UI |
+| `B4.4-core-gateway` | Hà Điền Trung Hiếu | Core & Integration (Gateway, Autopilot) |
+| `B4.5-devops-monitoring` | Nguyễn Văn Hiếu | DevOps, Monitoring & Notification |
+
+```bash
+git checkout B4.1-ai-worker      # chuyển sang nhánh của mình
+git push -u origin B4.1-ai-worker
+```
+
+## 8. Giấy phép
 
 Dự án học tập, sử dụng các thành phần mã nguồn mở: PostgreSQL, MinIO, Redis, Next.js, FastAPI,
 Prometheus, Grafana, và các mô hình sinh ảnh mở (SD-Turbo, Tiny-SD, Stable Diffusion).
