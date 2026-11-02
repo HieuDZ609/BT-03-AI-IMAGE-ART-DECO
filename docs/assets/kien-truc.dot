@@ -1,0 +1,66 @@
+
+digraph G {
+  graph [rankdir=TB, fontname="DejaVu Sans", nodesep=0.28, ranksep=0.42, bgcolor="white", pad=0.15];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10,
+         fillcolor="#F7F1E3", color="#B8912F", penwidth=1.2, margin="0.14,0.07"];
+  edge  [fontname="DejaVu Sans", fontsize=9, color="#5B5B5B", arrowsize=0.65];
+
+  inet   [label="Internet", fillcolor="#E9DFC6", shape=box];
+  tunnel [label="HTTPS Tunnel\n(Ngrok / Cloudflare)"];
+  nginx  [label="Nginx · reverse proxy\n:80 / :443"];
+
+  fe     [label="Frontend (Next.js)\n:3000   ·  VM4"];
+  gw     [label="API Gateway (FastAPI)\n:8000   ·  VM4"];
+  autop  [label="Autopilot\n(Seeder) · VM4"];
+
+  subgraph cluster_data {
+    label="Khối dữ liệu — VM4";
+    fontname="DejaVu Sans"; fontsize=10; color="#C9A227"; style="rounded,dashed";
+    redis  [label="Redis 7\nStreams"];
+    pg     [label="PostgreSQL 16"];
+    minio  [label="MinIO\nS3 Object Storage"];
+    isvc   [label="image-service\n(FastAPI)"];
+  }
+
+  subgraph cluster_workers {
+    label="5 AI Worker độc lập — mỗi máy ảo một worker";
+    fontname="DejaVu Sans"; fontsize=10; color="#1E6E6B"; style="rounded,dashed";
+    w1 [label="Worker 1.1\nVM1 · B4.1"];
+    w2 [label="Worker 2.1\nVM2 · B4.2"];
+    w3 [label="Worker 3.1\nVM3 · B4.3"];
+    w4 [label="Worker 4.1\nVM4 · B4.4"];
+    w5 [label="Worker 5.1\nVM5 · B4.5"];
+  }
+
+  mon [label="Prometheus + Grafana\nAlertmanager · notify-service\nVM5", fillcolor="#E6F2F1", color="#1E6E6B"];
+  tg  [label="Telegram Bot\nDiscord Webhook", fillcolor="#E6F2F1", color="#1E6E6B"];
+
+  inet   -> tunnel;
+  tunnel -> nginx;
+  nginx  -> fe  [label="  /  "];
+  nginx  -> gw  [label="  /api  "];
+  gw     -> redis;
+  gw     -> isvc;
+  gw     -> pg     [style=dashed, label="auth / log"];
+  autop  -> redis  [label="XADD"];
+  isvc   -> pg;
+  isvc   -> minio;
+  redis  -> w1     [style=dashed, label="XREADGROUP", lhead=cluster_workers];
+  w1 -> minio      [style=dashed, label="upload", constraint=false];
+  w2 -> minio      [style=dashed, constraint=false];
+  w3 -> minio      [style=dashed, constraint=false];
+  w4 -> minio      [style=dashed, constraint=false];
+  w5 -> minio      [style=dashed, constraint=false];
+  w1 -> pg         [style=dotted, constraint=false];
+  w2 -> pg         [style=dotted, constraint=false];
+  w3 -> pg         [style=dotted, constraint=false];
+  w4 -> pg         [style=dotted, constraint=false];
+  w5 -> pg         [style=dotted, constraint=false];
+  w1 -> mon        [style=dotted, constraint=false, color="#1E6E6B"];
+  mon -> tg        [color="#1E6E6B"];
+
+  {rank=same; tunnel; nginx;}
+  {rank=same; fe; gw; autop;}
+  {rank=same; redis; pg; minio; isvc;}
+  {rank=same; w1; w2; w3; w4; w5;}
+}
