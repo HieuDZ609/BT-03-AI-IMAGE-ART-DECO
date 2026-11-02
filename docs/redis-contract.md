@@ -1,0 +1,130 @@
+# Hợp đồng kết nối Redis — dùng chung cho Gateway, Autopilot và 5 AI Worker
+
+> Tài liệu này là phần **bắt buộc thống nhất trước khi code**. Mọi module nói chuyện với nhau
+> qua Redis theo đúng mô tả dưới đây; không ai tự đặt thêm tên stream/khoá mới.
+
+## 1. Thông số kết nối
+
+| Thông số | Giá trị |
+|---|---|
+| Dịch vụ | Redis 7 (image `redis:7-alpine`) |
+| Máy chủ | **VM4 — core node** (nhóm trưởng vận hành) |
+| Cổng | `6379` |
+| Mật khẩu | biến môi trường `REDIS_PASSWORD` (nhóm trưởng cấp, **không commit**) |
+| Database index | `0` |
+| Chế độ bảo vệ | `requirepass` bật, `protected-mode yes`, **không publish cổng ra Internet** |
+
+Chuỗi kết nối:
+
+```
+# Khi phát triển trên cùng máy (docker compose local)
+REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+
+# Khi chạy thật: worker trên VM1–VM3, VM5 trỏ về VM4
+REDIS_URL=redis://:${REDIS_PASSWORD}@<VM4_IP>:6379/0
+```
+
+Địa chỉ `<VM4_IP>` do nhóm trưởng chốt khi dựng xong mạng nội bộ VMware và ghi vào `.env`
+của từng máy (`.env` đã nằm trong `.gitignore`).
+
+## 2. Stream và consumer group
+
+| Tên | Loại | Ai ghi | Ai đọc |
+|---|---|---|---|
+| `jobs:generate` | Stream | Gateway (khi search miss), Autopilot | 5 AI Worker |
+| `job:events` | Stream | Worker (khi xong/lỗi) | Gateway (phát SSE) |
+
+Consumer group: **`workers`** — tạo một lần, idempotent:
+
+```python
+try:
+    r.xgroup_create("jobs:generate", "workers", id="0", mkstream=True)
+except redis.exceptions.ResponseError as e:
+    if "BUSYGROUP" not in str(e):
+        raise
+```
+
+Tên consumer = `ai_code` của worker (`1.1`, `2.1`, …, `5.1`). Nhờ vậy khi một worker chết,
+`XAUTOCLAIM` biết job nào đang treo ở consumer nào.
+
+## 3. Định dạng message
+
+### 3.1. Job (Gateway/Autopilot → Worker)
+
+```json
+{
+  "job_id": "b7f1c2d3-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "query": "black dog",
+  "slug": "black-dog",
+  "source": "SEARCH",
+  "style_id": "deco-v1",
+  "requested_at": "2026-11-04T10:12:00Z"
+}
+```
+
+- `source`: `SEARCH` (người dùng tìm không thấy) hoặc `AUTOPILOT` (hệ thống tự sinh).
+- `slug` đã được chuẩn hoá ở Gateway, worker **không** chuẩn hoá lại.
+
+### 3.2. Sự kiện kết quả (Worker → Gateway)
+
+```json
+{
+  "job_id": "b7f1c2d3-...",
+  "status": "DONE",
+  "image_id": "8f14e45f-...",
+  "image_name": "black dog 4.1.png",
+  "ai_code": "4.1",
+  "duration_ms": 21450
+}
+```
+
+`status` chỉ nhận: `DONE` hoặc `FAILED` (kèm `"error": "..."`).
+
+## 4. Khoá phụ
+
+| Khoá | Kiểu | Ghi bởi | TTL | Ý nghĩa |
+|---|---|---|---|---|
+| `worker:heartbeat:{ai_code}` | String | Worker, mỗi 30 s | 90 s | Hết TTL ⇒ hệ thống coi worker OFFLINE |
+| `job:{job_id}:result` | String (JSON) | Worker | 1 giờ | Cho polling dự phòng khi SSE lỗi |
+| `lock:slug:{slug}` | String (SET NX) | Gateway | 120 s | Hai người tìm cùng lúc chỉ sinh một ảnh |
+
+## 5. Quy trình worker (chuẩn)
+
+```python
+while True:
+    resp = r.xreadgroup("workers", AI_CODE, {"jobs:generate": ">"},
+                        count=1, block=5000)
+    if not resp:
+        r.set(f"worker:heartbeat:{AI_CODE}", "1", ex=90)
+        continue
+    _, entries = resp[0]
+    for entry_id, data in entries:
+        try:
+            image = generate(data["query"])          # sinh ảnh + hậu kỳ Art Deco
+            save_and_index(image, data["job_id"])    # MinIO + PostgreSQL
+            r.xadd("job:events", {"payload": json.dumps(result)})
+            r.set(f"job:{data['job_id']}:result", json.dumps(result), ex=3600)
+            r.xack("jobs:generate", "workers", entry_id)
+        except Exception as e:
+            # KHÔNG ack: để XAUTOCLAIM giao lại sau 120 s
+            log.error("job %s failed: %s", data.get("job_id"), e)
+```
+
+Quy tắc:
+
+1. **Chỉ `XACK` sau khi** ảnh đã nằm trong MinIO **và** metadata đã vào PostgreSQL.
+2. Lỗi tạm thời (mạng, OOM) ⇒ không ack, để job được giao lại.
+3. Sau 3 lần thất bại ⇒ Gateway đánh dấu `DEAD`, phát cảnh báo Telegram/Discord.
+4. Heartbeat ghi mỗi 30 giây, kể cả khi đang bận sinh ảnh (dùng thread riêng).
+
+## 6. Kiểm tra nhanh
+
+```bash
+# Từ VM1 — kiểm tra kết nối
+redis-cli -h <VM4_IP> -p 6379 -a "$REDIS_PASSWORD" ping          # → PONG
+
+# Xem hàng đợi và consumer
+redis-cli -h <VM4_IP> -p 6379 -a "$REDIS_PASSWORD" xlen jobs:generate
+redis-cli -h <VM4_IP> -p 6379 -a "$REDIS_PASSWORD" xinfo groups jobs:generate
+redis-cli -h <VM4_IP> -p 6379 -a "$REDIS_PASSWORD" keys 'worker:heartbeat:*'
+```
