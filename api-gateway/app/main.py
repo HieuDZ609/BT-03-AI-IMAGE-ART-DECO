@@ -31,6 +31,10 @@ def health():
 @app.get('/search')
 def search(q: str = Query(...), limit: int = 20):
     slug = slugify(q)
+    cache_key = f'cache:search:{slug}:{limit}'
+    cached = r.get(cache_key)
+    if cached:
+        return json.loads(cached)
     with psycopg.connect(DATABASE_URL) as c:
         rows = c.execute(
             "SELECT image_id, image_name, slug, style_id, storage_key, sha256, width, height, format, file_size, created_at FROM images WHERE slug=%s OR slug %% %s ORDER BY created_at DESC LIMIT %s",
@@ -39,7 +43,9 @@ def search(q: str = Query(...), limit: int = 20):
         images = [dict(zip(keys, row)) for row in rows]
         if images:
             c.execute("INSERT INTO search_logs (query, hit, job_id) VALUES (%s, true, NULL)", (q,))
-            return {'hit': True, 'images': images, 'job_id': None, 'status': 'DONE'}
+            payload = {'hit': True, 'images': images, 'job_id': None, 'status': 'DONE'}
+            r.set(cache_key, json.dumps(payload, default=str), ex=30)
+            return payload
         # miss -> create job
         lock_key = f'lock:slug:{slug}'
         acquired = r.set(lock_key, '1', nx=True, ex=120)
@@ -96,6 +102,26 @@ def stream(job_id: str):
             time.sleep(1)
         yield f"data: {json.dumps({'job_id': job_id, 'status': 'TIMEOUT'})}\n\n"
     return StreamingResponse(gen(), media_type='text/event-stream')
+
+@app.get('/status')
+def status():
+    with psycopg.connect(DATABASE_URL) as c:
+        workers = c.execute(
+            "SELECT ai_code, status, last_heartbeat, total_generated FROM ai_workers ORDER BY worker_id").fetchall()
+        images = c.execute("SELECT COUNT(*) FROM images").fetchone()[0]
+        jobs = c.execute(
+            "SELECT status, COUNT(*) FROM generation_jobs GROUP BY status").fetchall()
+    online = [w[0] for w in workers if r.get(f'worker:heartbeat:{w[0]}')]
+    return {
+        'images': images,
+        'jobs': {k: v for k, v in jobs},
+        'workers': [
+            {'ai_code': w[0], 'status': 'ONLINE' if w[0] in online else w[1],
+             'last_heartbeat': w[2], 'total_generated': w[3]} for w in workers
+        ],
+        'online': online,
+    }
+
 
 @app.get('/metrics')
 def metrics():
