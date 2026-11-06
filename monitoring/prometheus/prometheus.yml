@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: 'gateway'
+    static_configs:
+      - targets: ['100.70.241.87:8000']
+  - job_name: 'image-service'
+    static_configs:
+      - targets: ['100.70.241.87:8001']
