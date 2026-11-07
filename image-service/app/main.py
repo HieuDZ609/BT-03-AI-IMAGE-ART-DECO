@@ -66,10 +66,11 @@ def serve_thumb(storage_key: str, w: int = Query(320, ge=64, le=1024)):
         dst.parent.mkdir(parents=True, exist_ok=True)
         with Image.open(src) as im:
             im = im.convert('RGB')
-            ratio = w / float(im.width)
-            size = (w, max(1, int(im.height * ratio)))
-            im = im.resize(size, Image.LANCZOS)
-            im.save(dst, format='WEBP', quality=82, method=4)
+            if im.width > w:
+                ratio = w / float(im.width)
+                size = (w, max(1, int(im.height * ratio)))
+                im = im.resize(size, Image.LANCZOS)
+            im.save(dst, format='WEBP', quality=88, method=4)
     return FileResponse(dst, media_type='image/webp', headers=CACHE_OK)
 
 

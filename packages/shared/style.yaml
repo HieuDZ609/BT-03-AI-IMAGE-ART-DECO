@@ -38,6 +38,8 @@ generation:
   seed: null
   backend: stable-diffusion.cpp
   model: tiny-sd-q4_K
+  text: post-process title plate (name recognition)
+  watermark: disabled
 
 postprocess:
   quantize_colors: 8

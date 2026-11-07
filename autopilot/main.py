@@ -8,11 +8,11 @@ STREAM = 'jobs:generate'
 r = redis.from_url(REDIS_URL, decode_responses=True)
 
 TOPICS = [
-    'art deco city', 'gold geometric pattern', '1920s poster', 'luxury interior',
-    'zigzag motif', 'fan pattern', 'sunburst design', 'black and gold',
-    'vintage automobile', 'skyscraper', 'cocktail glass', 'jazz musician',
-    'egyptian motif', 'machine age', 'streamline modern', 'chrome details',
-    'marble floor', 'stained glass', 'ornate gate', 'classic clock',
+    'art deco architecture', 'golden peacock', 'egyptian art', 'vintage automobile',
+    'celestial sun', 'art deco flower', 'luxury hotel', 'great gatsby',
+    'ocean life', 'golden butterfly', 'geometric lion', 'vintage radio',
+    'moon and stars', 'art deco woman', 'luxury train', 'phoenix',
+    'tropical paradise', 'diamond geometry', 'vintage lighthouse', 'abstract geometry',
 ]
 
 def slugify(t):

@@ -8,25 +8,27 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 SD_BIN = os.getenv('SD_CPP_BIN', '/opt/bt03/ai/bin/sd-cli')
 SD_MODEL = os.getenv('SD_MODEL', '/opt/bt03/ai/models/tiny-sd-q4_K.gguf')
 AI_SIZE = int(os.getenv('AI_SIZE', '320'))          # độ phân giải render nội bộ
-AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # kích thước ảnh giao cho kho
+AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # kích thước ảnh giao cho kho (256×256)
 AI_STEPS = int(os.getenv('AI_STEPS', '8'))
 AI_CFG = os.getenv('AI_CFG', '7.0')
 AI_THREADS = os.getenv('AI_THREADS', '8')
 AI_TIMEOUT = int(os.getenv('AI_TIMEOUT', '180'))
 MODEL_NAME = os.getenv('AI_MODEL_NAME', 'tiny-sd-q4_K')
+AI_TITLE_PLATE = os.getenv('AI_TITLE_PLATE', '1') == '1'
+FONT = os.getenv('AI_FONT', '/opt/bt03/ai/fonts/DejaVuSerif-Bold.ttf')
 
 POSITIVE = (
-    "{concept}, art deco poster, gold and black, symmetrical composition, "
-    "flat vector, high contrast, clean silhouette, geometric sunburst and fan motifs"
+    "art deco poster of {concept}, 1920s art deco, geometric shapes, symmetrical, "
+    "gold black ivory emerald, flat vector, high contrast, centered, clean silhouette"
 )
 NEGATIVE = (
-    "text, letters, watermark, signature, logo, blurry, low quality, deformed, "
-    "photorealistic, modern, cartoon, anime, extra limbs"
+    "text, letters, watermark, signature, logo, photorealistic, blurry, low quality, "
+    "deformed, complex, cartoon, anime, extra limbs"
 )
 
 # Bảng màu Art Deco cố định — dùng chung với style.yaml
@@ -57,6 +59,35 @@ def _frame(im: Image.Image, width: int = 3) -> Image.Image:
     return out
 
 
+def _title_plate(im: Image.Image, text: str, band: int = 30) -> Image.Image:
+    """Gắn tên chủ thể vào đáy ảnh như bảng tên Art Deco — giúp nhận diện ảnh với tên."""
+    w, h = im.size
+    out = im.copy()
+    d = ImageDraw.Draw(out)
+    d.rectangle((0, h - band, w, h), fill=PALETTE[0])
+    d.line((0, h - band, w, h - band), fill=PALETTE[1], width=1)
+    label = ' '.join(text.replace('-', ' ').replace('_', ' ').split()).upper()
+    if len(label) > 22:
+        label = label[:21] + '…'
+    size = 15
+    while size > 7:
+        try:
+            font = ImageFont.truetype(FONT, size)
+        except OSError:
+            font = ImageFont.load_default()
+            size = 0
+        tw = d.textlength(label, font=font)
+        if tw <= w - 18 or size <= 8:
+            break
+        size -= 1
+    d.text(((w - tw) / 2, h - band + (band - size) / 2 - 1), label, font=font, fill=PALETTE[5])
+    # hai viên kim cương nhỏ hai bên
+    for cx in (10, w - 11):
+        cy = h - band // 2
+        d.polygon([(cx, cy - 3), (cx + 3, cy), (cx, cy + 3), (cx - 3, cy)], fill=PALETTE[1])
+    return out
+
+
 def generate_image(query: str) -> tuple[bytes, str, int, int]:
     """Sinh ảnh thật bằng model local. Trả (bytes, format, width, height)."""
     prompt = POSITIVE.format(concept=query)
@@ -77,7 +108,10 @@ def generate_image(query: str) -> tuple[bytes, str, int, int]:
             im = im.convert('RGB')
             if im.size != (AI_DELIVER, AI_DELIVER):
                 im = im.resize((AI_DELIVER, AI_DELIVER), Image.LANCZOS)
-            im = _frame(_quantize(im))
+            if AI_TITLE_PLATE:
+                im = _frame(_title_plate(_quantize(im), query, band=30))
+            else:
+                im = _frame(_quantize(im), width=3)
             w, h = im.size
             import io
             buf = io.BytesIO()
