@@ -4,6 +4,7 @@ Không gọi API AI. Sinh ảnh 256x256 trên CPU, sau đó hậu kỳ Art Deco:
 ép bảng màu 6 màu + viền vàng 3px (đúng thiết kế trong báo cáo).
 """
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -99,8 +100,50 @@ def _title_plate(im: Image.Image, text: str, band: int = 30) -> Image.Image:
     return out
 
 
+NODE_BIN = os.getenv('NODE_BIN', 'node')
+VECTOR_DIR = os.getenv('VECTOR_DIR', '/opt/bt03/worker/node')
+VECTOR_KEYWORDS = re.compile(
+    r'pig|heo|lợn|swine|table|bàn|desk|chair|ghế|clock|đồng hồ|watch|'
+    r'car|xe|automobile|vehicle|cat|mèo|kitten|feline|dog|chó|puppy|hound|'
+    r'flower|rose|sunflower|hoa|hat|mũ|nón|cap|house|nhà|building|'
+    r'bird|eagle|chim|đại bàng|falcon|swan|boat|ship|thuyền|tàu|'
+    r'elephant|voi|apple|táo|fruit|tree|cây|forest|redwood|'
+    r'saturn|planet|solar|hành tinh|vũ trụ|airplane|plane|máy bay',
+    re.IGNORECASE,
+)
+
+
+def generate_vector_image(query: str) -> tuple[bytes, str, int, int]:
+    """Sinh ảnh vector Art Deco (B4.2) — nhận diện subject rõ ràng, tức thì."""
+    with tempfile.TemporaryDirectory(prefix='bt03-vec-') as td:
+        out = Path(td) / 'out.png'
+        proc = subprocess.run(
+            [NODE_BIN, str(Path(VECTOR_DIR) / 'vector_gen.js'), query, str(out)],
+            capture_output=True, text=True, timeout=60,
+            cwd=VECTOR_DIR,
+        )
+        if proc.returncode != 0 or not out.is_file():
+            raise RuntimeError('vector engine failed: ' + (proc.stderr or proc.stdout)[-400:])
+        with Image.open(out) as im:
+            im = im.convert('RGB')
+            if im.size != (AI_DELIVER, AI_DELIVER):
+                im = im.resize((AI_DELIVER, AI_DELIVER), Image.LANCZOS)
+            im = _frame(_title_plate(_quantize(im), query, band=30) if AI_TITLE_PLATE else _frame(_quantize(im), width=2))
+            w, h = im.size
+            import io
+            buf = io.BytesIO()
+            im.save(buf, format='PNG', optimize=True)
+            return buf.getvalue(), 'png', w, h
+
+
 def generate_image(query: str) -> tuple[bytes, str, int, int]:
-    """Sinh ảnh thật bằng model local. Trả (bytes, format, width, height)."""
+    """Sinh ảnh. Ưu tiên vector engine (nhận diện rõ, tức thì) nếu subject khớp;
+    còn lại dùng Tiny-SD neural."""
+    if VECTOR_KEYWORDS.search(query or ''):
+        try:
+            return generate_vector_image(query)
+        except Exception as e:
+            print('vector engine failed, fallback to sd:', e)
     prompt = POSITIVE.format(concept=query)
     with tempfile.TemporaryDirectory(prefix='bt03-ai-') as td:
         out = Path(td) / 'out.png'
