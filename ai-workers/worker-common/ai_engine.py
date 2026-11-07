@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 SD_BIN = os.getenv('SD_CPP_BIN', '/opt/bt03/ai/bin/sd-cli')
 SD_MODEL = os.getenv('SD_MODEL', '/opt/bt03/ai/models/tiny-sd-q4_K.gguf')
-AI_SIZE = int(os.getenv('AI_SIZE', '320'))          # độ phân giải render nội bộ
+AI_SIZE = int(os.getenv('AI_SIZE', '256'))          # độ phân giải render nội bộ (256×256)
 AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # kích thước ảnh giao cho kho (256×256)
 AI_STEPS = int(os.getenv('AI_STEPS', '8'))
 AI_CFG = os.getenv('AI_CFG', '7.0')
@@ -23,12 +23,23 @@ AI_TITLE_PLATE = os.getenv('AI_TITLE_PLATE', '1') == '1'
 FONT = os.getenv('AI_FONT', '/opt/bt03/ai/fonts/DejaVuSerif-Bold.ttf')
 
 POSITIVE = (
-    "art deco poster of {concept}, 1920s art deco, geometric shapes, symmetrical, "
-    "gold black ivory emerald, flat vector, high contrast, centered, clean silhouette"
+    "Create a unique ART DECO illustration. Subject: {concept}. "
+    "Style: 1920s Art Deco, elegant geometric shapes, symmetrical design, "
+    "bold angular lines, decorative patterns, vintage luxury aesthetic. "
+    "Visual elements: golden ornaments, sunburst patterns, stepped geometry, "
+    "fan-shaped motifs, clean silhouettes. "
+    "Color palette: black, metallic gold, ivory, emerald green, deep navy. "
+    "Use 3-4 colors. "
+    "Composition: centered subject, simple background, balanced layout, "
+    "strong contrast, recognizable shapes. "
+    "Rendering: flat graphic illustration, clean vector-like shapes, crisp edges, "
+    "simplified details. Square image, 256x256 composition. "
+    "No text, no letters, no watermark, no photorealism."
 )
 NEGATIVE = (
-    "text, letters, watermark, signature, logo, photorealistic, blurry, low quality, "
-    "deformed, complex, cartoon, anime, extra limbs"
+    "blurry, low quality, distorted shapes, messy composition, realistic photography, "
+    "complex background, extra objects, multiple subjects, text, letters, watermark, "
+    "signature, bad proportions, noisy details, oversaturated colors"
 )
 
 # Bảng màu Art Deco cố định — dùng chung với style.yaml
@@ -98,7 +109,7 @@ def generate_image(query: str) -> tuple[bytes, str, int, int]:
             '-W', str(AI_SIZE), '-H', str(AI_SIZE),
             '--cfg-scale', AI_CFG, '--steps', str(AI_STEPS),
             '--sampling-method', 'euler_a', '--diffusion-fa',
-            '-t', AI_THREADS, '-o', str(out),
+            '-t', AI_THREADS, '-s', '-1', '-o', str(out),
             '-p', prompt, '-n', NEGATIVE,
         ]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=AI_TIMEOUT)
@@ -111,7 +122,7 @@ def generate_image(query: str) -> tuple[bytes, str, int, int]:
             if AI_TITLE_PLATE:
                 im = _frame(_title_plate(_quantize(im), query, band=30))
             else:
-                im = _frame(_quantize(im), width=3)
+                im = _frame(_quantize(im), width=2)
             w, h = im.size
             import io
             buf = io.BytesIO()

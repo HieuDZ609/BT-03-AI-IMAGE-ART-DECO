@@ -31,14 +31,14 @@ negative_prompt: >
 generation:
   width: 256
   height: 256
-  render_size: 320      # render nội bộ rồi hạ về 256 để chủ thể rõ hơn
+  render_size: 256      # render và giao cùng 256×256 (nhanh, đúng SLA 15-45s)
   steps: 8
   guidance_scale: 7.0
   sampler: euler_a
-  seed: null
+  seed: random
   backend: stable-diffusion.cpp
   model: tiny-sd-q4_K
-  text: post-process title plate (name recognition)
+  text: post-process title plate (Python/Pillow)
   watermark: disabled
 
 postprocess:

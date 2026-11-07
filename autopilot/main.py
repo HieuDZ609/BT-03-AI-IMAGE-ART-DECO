@@ -8,11 +8,26 @@ STREAM = 'jobs:generate'
 r = redis.from_url(REDIS_URL, decode_responses=True)
 
 TOPICS = [
-    'art deco architecture', 'golden peacock', 'egyptian art', 'vintage automobile',
-    'celestial sun', 'art deco flower', 'luxury hotel', 'great gatsby',
-    'ocean life', 'golden butterfly', 'geometric lion', 'vintage radio',
-    'moon and stars', 'art deco woman', 'luxury train', 'phoenix',
-    'tropical paradise', 'diamond geometry', 'vintage lighthouse', 'abstract geometry',
+    # Animals
+    'golden lion', 'golden peacock', 'eagle', 'butterfly', 'cat', 'wolf',
+    # Nature
+    'celestial sun', 'moon', 'mountain', 'ocean', 'flower', 'tree',
+    # Architecture
+    'skyscraper', 'luxury hotel', 'palace', 'lighthouse', 'tower',
+    # Objects
+    'vintage clock', 'vintage radio', 'diamond', 'perfume', 'camera',
+    # Mythology
+    'phoenix', 'dragon', 'medusa', 'egyptian pharaoh',
+    # Space
+    'saturn', 'galaxy', 'shooting star', 'solar system',
+    # Vehicles
+    'vintage car', 'steam train', 'airplane', 'yacht',
+    # Abstract
+    'golden geometry', 'symmetrical shapes', 'sunburst',
+    # Fashion
+    'vintage woman', 'art deco jewelry', 'luxury hat',
+    # Fantasy
+    'crystal castle', 'golden sword', 'magic portal',
 ]
 
 def slugify(t):
