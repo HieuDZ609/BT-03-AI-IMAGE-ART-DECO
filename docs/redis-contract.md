@@ -147,3 +147,19 @@ redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" xlen jobs:generate
 redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" xinfo groups jobs:generate
 redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" keys 'worker:heartbeat:*'
 ```
+
+## 7. Độ bền hàng đợi (đã bật trên VM4)
+
+Redis trên VM4 chạy **không bật AOF** (`appendonly no`) và vẫn bật snapshot RDB. Lý do:
+nguồn sự thật của job là bảng `generation_jobs` trong PostgreSQL; AOF từng bị hỏng khi VM
+mất điện đột ngột và làm Redis không khởi động lại được. Tắt AOF giúp Redis luôn boot sạch,
+đổi lại worker phải tự đối soát:
+
+- Mỗi 60 giây worker gọi `XAUTOCLAIM` để nhận lại job nằm quá 120 giây trong PEL
+  (trường hợp worker crash giữa chừng).
+- Mỗi 60 giây worker quét `generation_jobs` có `status='QUEUED'` và tạo quá 90 giây
+  nhưng chưa từng vào stream (Redis chết đúng lúc `XADD`) rồi đẩy lại vào `jobs:generate`.
+- Job được xử lý trùng sẽ được bỏ qua nhờ kiểm tra `images (slug, worker_id)` trước khi sinh.
+
+Ngoài ra VM4 đặt `vm.overcommit_memory=1` và cho `redis-server` tự restart vô hạn
+(`StartLimitIntervalSec=0`) sau `tailscaled`, tránh lỗi bind IP Tailscale lúc mới boot.

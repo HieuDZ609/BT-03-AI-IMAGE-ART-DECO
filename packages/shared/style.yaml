@@ -29,11 +29,15 @@ negative_prompt: >
   watermark, text, logo, nsfw, distorted
 
 generation:
-  width: 512
-  height: 512
-  steps: 4
-  guidance_scale: 0.0
+  width: 256
+  height: 256
+  render_size: 320      # render nội bộ rồi hạ về 256 để chủ thể rõ hơn
+  steps: 8
+  guidance_scale: 7.0
+  sampler: euler_a
   seed: null
+  backend: stable-diffusion.cpp
+  model: tiny-sd-q4_K
 
 postprocess:
   quantize_colors: 8

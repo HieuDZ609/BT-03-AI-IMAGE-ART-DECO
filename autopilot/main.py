@@ -35,6 +35,11 @@ def main():
             if exists:
                 time.sleep(5)
                 continue
+            # đã có ảnh cho slug này thì bỏ qua (tránh trùng)
+            has_img = c.execute("SELECT 1 FROM images WHERE slug=%s LIMIT 1", (slug,)).fetchone()
+            if has_img:
+                time.sleep(5)
+                continue
             c.execute("INSERT INTO generation_jobs (job_id, query, slug, source, status) VALUES (%s,%s,%s,'AUTOPILOT','QUEUED')", (job_id, topic, slug))
         r.xadd(STREAM, {
             'job_id': job_id, 'query': topic, 'slug': slug, 'source': 'AUTOPILOT',
