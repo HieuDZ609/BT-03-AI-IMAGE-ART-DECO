@@ -4,43 +4,33 @@ Không gọi API AI. Sinh ảnh 256x256 trên CPU, sau đó hậu kỳ Art Deco:
 ép bảng màu 6 màu + viền vàng 3px (đúng thiết kế trong báo cáo).
 """
 import os
-import re
 import subprocess
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 SD_BIN = os.getenv('SD_CPP_BIN', '/opt/bt03/ai/bin/sd-cli')
-SD_MODEL = os.getenv('SD_MODEL', '/opt/bt03/ai/models/tiny-sd-q4_K.gguf')
-AI_SIZE = int(os.getenv('AI_SIZE', '256'))          # độ phân giải render nội bộ (256×256)
-AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # kích thước ảnh giao cho kho (256×256)
-AI_STEPS = int(os.getenv('AI_STEPS', '8'))
-AI_CFG = os.getenv('AI_CFG', '7.0')
+SD_MODEL = os.getenv('SD_MODEL', '/opt/bt03/ai/models/sd-turbo-q8_0.gguf')
+AI_SIZE = int(os.getenv('AI_SIZE', '256'))          # độ phân giải render (256×256)
+AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # kích thước ảnh giao cho kho
+AI_STEPS = int(os.getenv('AI_STEPS', '4'))          # SD-Turbo: 4 bước, q8 ổn định
+AI_CFG = os.getenv('AI_CFG', '1.0')                 # SD-Turbo: CFG thấp
 AI_THREADS = os.getenv('AI_THREADS', '8')
 AI_TIMEOUT = int(os.getenv('AI_TIMEOUT', '180'))
-MODEL_NAME = os.getenv('AI_MODEL_NAME', 'tiny-sd-q4_K')
+MODEL_NAME = os.getenv('AI_MODEL_NAME', 'sd-turbo-q8_0')
 AI_TITLE_PLATE = os.getenv('AI_TITLE_PLATE', '1') == '1'
 FONT = os.getenv('AI_FONT', '/opt/bt03/ai/fonts/DejaVuSerif-Bold.ttf')
 
 POSITIVE = (
-    "Create a unique ART DECO illustration. Subject: {concept}. "
-    "Style: 1920s Art Deco, elegant geometric shapes, symmetrical design, "
-    "bold angular lines, decorative patterns, vintage luxury aesthetic. "
-    "Visual elements: golden ornaments, sunburst patterns, stepped geometry, "
-    "fan-shaped motifs, clean silhouettes. "
-    "Color palette: black, metallic gold, ivory, emerald green, deep navy. "
-    "Use 3-4 colors. "
-    "Composition: centered subject, simple background, balanced layout, "
-    "strong contrast, recognizable shapes. "
-    "Rendering: flat graphic illustration, clean vector-like shapes, crisp edges, "
-    "simplified details. Square image, 256x256 composition. "
-    "No text, no letters, no watermark, no photorealism."
+    "illustration of {concept}, {concept} clearly visible, centered, "
+    "simple background, black and gold art deco accents, flat vector, "
+    "clean shapes, high contrast"
 )
 NEGATIVE = (
-    "blurry, low quality, distorted shapes, messy composition, realistic photography, "
-    "complex background, extra objects, multiple subjects, text, letters, watermark, "
-    "signature, bad proportions, noisy details, oversaturated colors"
+    "blurry, low quality, distorted, messy, complex background, extra objects, "
+    "multiple subjects, text, letters, watermark, signature, bad proportions, "
+    "noisy details, oversaturated"
 )
 
 # Bảng màu Art Deco cố định — dùng chung với style.yaml
@@ -55,6 +45,8 @@ PALETTE = [
 
 
 def _quantize(im: Image.Image) -> Image.Image:
+    # Làm mượt nhẹ để khử nhiễu/scanline của model nhỏ trước khi ép palette.
+    im = im.filter(ImageFilter.GaussianBlur(0.6))
     pal = Image.new('P', (1, 1))
     flat = []
     for c in PALETTE:
@@ -100,50 +92,8 @@ def _title_plate(im: Image.Image, text: str, band: int = 30) -> Image.Image:
     return out
 
 
-NODE_BIN = os.getenv('NODE_BIN', 'node')
-VECTOR_DIR = os.getenv('VECTOR_DIR', '/opt/bt03/worker/node')
-VECTOR_KEYWORDS = re.compile(
-    r'pig|heo|lợn|swine|table|bàn|desk|chair|ghế|clock|đồng hồ|watch|'
-    r'car|xe|automobile|vehicle|cat|mèo|kitten|feline|dog|chó|puppy|hound|'
-    r'flower|rose|sunflower|hoa|hat|mũ|nón|cap|house|nhà|building|'
-    r'bird|eagle|chim|đại bàng|falcon|swan|boat|ship|thuyền|tàu|'
-    r'elephant|voi|apple|táo|fruit|tree|cây|forest|redwood|'
-    r'saturn|planet|solar|hành tinh|vũ trụ|airplane|plane|máy bay',
-    re.IGNORECASE,
-)
-
-
-def generate_vector_image(query: str) -> tuple[bytes, str, int, int]:
-    """Sinh ảnh vector Art Deco (B4.2) — nhận diện subject rõ ràng, tức thì."""
-    with tempfile.TemporaryDirectory(prefix='bt03-vec-') as td:
-        out = Path(td) / 'out.png'
-        proc = subprocess.run(
-            [NODE_BIN, str(Path(VECTOR_DIR) / 'vector_gen.js'), query, str(out)],
-            capture_output=True, text=True, timeout=60,
-            cwd=VECTOR_DIR,
-        )
-        if proc.returncode != 0 or not out.is_file():
-            raise RuntimeError('vector engine failed: ' + (proc.stderr or proc.stdout)[-400:])
-        with Image.open(out) as im:
-            im = im.convert('RGB')
-            if im.size != (AI_DELIVER, AI_DELIVER):
-                im = im.resize((AI_DELIVER, AI_DELIVER), Image.LANCZOS)
-            im = _frame(_title_plate(_quantize(im), query, band=30) if AI_TITLE_PLATE else _frame(_quantize(im), width=2))
-            w, h = im.size
-            import io
-            buf = io.BytesIO()
-            im.save(buf, format='PNG', optimize=True)
-            return buf.getvalue(), 'png', w, h
-
-
 def generate_image(query: str) -> tuple[bytes, str, int, int]:
-    """Sinh ảnh. Ưu tiên vector engine (nhận diện rõ, tức thì) nếu subject khớp;
-    còn lại dùng Tiny-SD neural."""
-    if VECTOR_KEYWORDS.search(query or ''):
-        try:
-            return generate_vector_image(query)
-        except Exception as e:
-            print('vector engine failed, fallback to sd:', e)
+    """Sinh ảnh Art Deco thật bằng SD-Turbo local (CPU)."""
     prompt = POSITIVE.format(concept=query)
     with tempfile.TemporaryDirectory(prefix='bt03-ai-') as td:
         out = Path(td) / 'out.png'
@@ -151,7 +101,7 @@ def generate_image(query: str) -> tuple[bytes, str, int, int]:
             SD_BIN, '-m', SD_MODEL,
             '-W', str(AI_SIZE), '-H', str(AI_SIZE),
             '--cfg-scale', AI_CFG, '--steps', str(AI_STEPS),
-            '--sampling-method', 'euler_a', '--diffusion-fa',
+            '--sampling-method', 'euler',
             '-t', AI_THREADS, '-s', '-1', '-o', str(out),
             '-p', prompt, '-n', NEGATIVE,
         ]
