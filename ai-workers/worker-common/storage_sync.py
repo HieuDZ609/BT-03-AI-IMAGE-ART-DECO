@@ -49,6 +49,6 @@ def verify_remote_image(storage_key):
     remote_path = remote_dir.rstrip("/") + "/" + key.as_posix()
     subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
-         target, "test -s -- " + shlex.quote(remote_path)],
+         target, "test -s " + shlex.quote(remote_path)],
         check=True, timeout=20
     )
