@@ -227,3 +227,33 @@ def job_v1(job_id: str):
 @app.get('/api/v1/jobs/{job_id}/events')
 def events_v1(job_id: str):
     return stream(job_id)
+
+
+# Alias /v1/* (nginx strips /api/ prefix) -> cùng handler /api/v1/*
+@app.get('/v1/search')
+def search_v1_noprefix(q: str = Query(...), page: int = 1, size: int = 50):
+    return search_v1(q=q, page=page, size=size)
+
+@app.get('/v1/images')
+def images_v1_noprefix(page: int = 1, size: int = 50):
+    return images_v1(page=page, size=size)
+
+@app.get('/v1/images/{image_id}/file')
+def image_file_v1_noprefix(image_id: str):
+    return image_file_v1(image_id)
+
+@app.get('/v1/statistics')
+def statistics_v1_noprefix():
+    return statistics_v1()
+
+@app.post('/v1/generate')
+def generate_v1_noprefix(body: dict = None):
+    return generate_v1(body=body)
+
+@app.get('/v1/jobs/{job_id}')
+def job_v1_noprefix(job_id: str):
+    return job_v1(job_id)
+
+@app.get('/v1/jobs/{job_id}/events')
+def events_v1_noprefix(job_id: str):
+    return events_v1(job_id)
