@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KHO ẢNH TRỰC TUYẾN THÔNG MINH · ART DECO</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="wordmark" href="/">
+        <span class="wordmark-mark">B4</span>
+        <span>
+          <span class="eyebrow">Nhóm B4 — Kho ảnh AI</span>
+          <strong>ART DECO GALLERY</strong>
+        </span>
+      </a>
+      <form class="search-form" id="search-form" action="/" method="get">
+        <input id="search-input" type="search" name="q" value="<%= search %>" 
+               placeholder="Tìm kiếm bằng từ khoá tiếng Anh..." maxlength="60" required>
+        <button type="submit">TÌM KIẾM ↗</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="intro">
+      <span class="eyebrow">Bộ sưu tập thông minh tự động</span>
+      <h1>Kho ảnh minh hoạ Art Deco</h1>
+      <p class="intro-copy">Ảnh được sinh liên tục bởi 5 AI Worker độc lập và lưu trữ vĩnh viễn.</p>
+      <div class="search-status" id="search-status"></div>
+    </section>
+
+    <!-- Grid 50 ảnh -->
+    <section class="gallery-grid" id="gallery-grid">
+      <% if (images && images.length > 0) { %>
+        <% images.forEach(function(img) { %>
+          <article class="image-card">
+            <!-- URL 302 chuyển hướng đến Presigned URL của MinIO -->
+            <img src="/api/v1/images/<%= img.image_id %>/file" alt="<%= img.image_name %>" loading="lazy" width="256" height="256">
+            <div class="image-caption">
+              <h2 title="<%= img.image_name %>"><%= img.image_name %></h2>
+              <div class="badge-group">
+                <span class="ai-badge">AI <%= img.ai_code %></span>
+                <span class="ai-badge"><%= img.model_name || 'SD-Turbo' %></span>
+              </div>
+            </div>
+          </article>
+        <% }); %>
+      <% } else { %>
+        <div class="empty-state">
+          <p>Chưa có ảnh phù hợp trong kho. Đang chuẩn bị luồng sinh mới...</p>
+        </div>
+      <% } %>
+    </section>
+
+    <!-- Phân trang 50 ảnh/trang -->
+    <nav class="pagination">
+      <% if (currentPage > 1) { %>
+        <a class="page-button" href="/?page=<%= currentPage - 1 %><% if (search) { %>&q=<%= encodeURIComponent(search) %><% } %>">← TRANG TRƯỚC</a>
+      <% } else { %>
+        <span class="page-button is-disabled">← TRANG TRƯỚC</span>
+      <% } %>
+
+      <span class="page-count">TRANG <strong><%= currentPage %></strong> / <strong><%= totalPages %></strong></span>
+
+      <% if (currentPage < totalPages) { %>
+        <a class="page-button" href="/?page=<%= currentPage + 1 %><% if (search) { %>&q=<%= encodeURIComponent(search) %><% } %>">TRANG SAU →</a>
+      <% } else { %>
+        <span class="page-button is-disabled">TRANG SAU →</span>
+      <% } %>
+    </nav>
+  </main>
+
+  <!-- Bảng Thống Kê Theo AI (Cuối Trang) -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span class="eyebrow">Thống kê vận hành</span>
+      <h2 style="color: var(--gold-bright); font-family: 'Georgia', serif;">Trạng Thái 5 AI Worker</h2>
+      
+      <div class="stats-grid" id="stats-grid">
+        <% if (stats && stats.length > 0) { %>
+          <% stats.forEach(function(st) { %>
+            <div class="stat-card">
+              <div class="stat-status <%= st.online ? 'online' : 'offline' %>" 
+                   title="<%= st.online ? 'ONLINE' : 'OFFLINE' %>"></div>
+              <span class="ai-badge">MÃ AI: <%= st.ai_code %></span>
+              <div class="count"><%= st.total_generated || st.total || 0 %></div>
+              <div class="meta">Thành viên: <%= st.member_name || 'Nhóm B4' %></div>
+              <div class="meta">Model: <%= st.model_name %></div>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Debounce search 300ms
+    const searchInput = document.getElementById('search-input');
+    let timer;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(timer);
+      const val = searchInput.value.trim();
+      if (!val) return;
+      timer = setTimeout(() => {
+        document.getElementById('search-form').submit();
+      }, 300);
+    });
+  </script>
+</body>
+</html>
