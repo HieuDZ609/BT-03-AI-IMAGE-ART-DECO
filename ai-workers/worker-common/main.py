@@ -12,10 +12,6 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 import redis
 from PIL import Image, ImageDraw
@@ -143,12 +139,9 @@ def process(entry_id, data):
         if WORKER_ID:
             with db.cursor() as cur:
                 row = cur.execute(
-                    "SELECT image_id, image_name, sha256, storage_key FROM images WHERE slug=%s AND worker_id=%s LIMIT 1",
+                    "SELECT image_id, image_name FROM images WHERE slug=%s AND worker_id=%s LIMIT 1",
                     (slug, WORKER_ID)).fetchone()
             if row:
-                from storage_sync import verify_remote_image
-                verify_remote_image(row[3])
-
                 duration_ms = int((time.time() - t0) * 1000)
                 event = {
                     "job_id": job_id, "status": "DONE", "image_id": str(row[0]),
@@ -177,67 +170,42 @@ def process(entry_id, data):
         with open(path, "wb") as f:
             f.write(img_bytes)
 
-        # Chuyển ảnh sang VM4 trước khi ghi PostgreSQL và XACK.
-        from storage_sync import sync_image
-        sync_image(path, storage_key)
-
         image_id = str(uuid.uuid4())
-        image_name = f"{slug}-{AI_CODE}.png"
-
         with db.cursor() as cur:
             cur.execute(
                 """INSERT INTO images (image_id, image_name, slug, prompt, style_id, worker_id,
                    storage_key, sha256, width, height, format, file_size)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (sha256) DO NOTHING""",
-                (image_id, image_name, slug, query, "deco-v1", WORKER_ID,
+                (image_id, f"{slug} {AI_CODE}.png", slug, query, "deco-v1", WORKER_ID,
                  storage_key, sha, w, h, fmt, len(img_bytes)),
             )
-            # Kiểm tra metadata ảnh đã lưu.
-            cur.execute(
-                "SELECT image_id, storage_key, image_name FROM images WHERE sha256=%s",
-                (sha,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                raise RuntimeError("Không tìm thấy ảnh trong PostgreSQL sau INSERT")
-
-            if str(row[0]) != image_id or row[1] != storage_key:
-                # Ảnh trùng SHA-256: dùng bản ghi đã tồn tại.
-                from storage_sync import verify_remote_image
-                verify_remote_image(row[1])
-                image_id = str(row[0])
-                storage_key = row[1]
-
-            image_name = row[2]
+            # fetch actual image_id if conflict
+            cur.execute("SELECT image_id FROM images WHERE sha256=%s", (sha,))
+            image_id = str(cur.fetchone()[0])
 
         duration_ms = int((time.time() - t0) * 1000)
         event = {
             "job_id": job_id,
             "status": "DONE",
             "image_id": image_id,
-            "image_name": image_name,
+            "image_name": f"{slug} {AI_CODE}.png",
             "ai_code": AI_CODE,
             "duration_ms": duration_ms,
         }
-        if WORKER_ID:
-            with db.transaction():
-                with db.cursor() as cur:
-                    cur.execute(
-                        """UPDATE generation_jobs SET status='DONE', worker_id=%s, duration_ms=%s,
-                           image_id=%s, updated_at=now()
-                           WHERE job_id=%s AND status IS DISTINCT FROM 'DONE'
-                           RETURNING job_id""",
-                        (WORKER_ID, duration_ms, image_id, job_id),
-                    )
-                    updated = cur.fetchone()
-                    if updated:
-                        cur.execute(
-                            "UPDATE ai_workers SET total_generated=total_generated+1 WHERE worker_id=%s",
-                            (WORKER_ID,),
-                        )
         r.xadd(EVENTS, {"payload": json.dumps(event)})
         r.set(f"job:{job_id}:result", json.dumps(event), ex=3600)
+        if WORKER_ID:
+            with db.cursor() as cur:
+                cur.execute(
+                    """UPDATE generation_jobs SET status='DONE', worker_id=%s, duration_ms=%s,
+                       image_id=%s, updated_at=now() WHERE job_id=%s""",
+                    (WORKER_ID, duration_ms, image_id, job_id),
+                )
+                cur.execute(
+                    "UPDATE ai_workers SET total_generated=total_generated+1 WHERE worker_id=%s",
+                    (WORKER_ID,),
+                )
         r.xack(STREAM, GROUP, entry_id)
         print("DONE job", job_id, slug)
     except Exception as e:
