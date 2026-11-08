@@ -1,0 +1,50 @@
+# packages/shared/style.yaml — phong cách Art Deco dùng chung cho cả 5 AI worker.
+# Mọi worker đọc file này và chèn `prompt_suffix` vào prompt, sau đó hậu kỳ ép bảng màu.
+
+style_id: deco-v1
+name: "Art Deco"
+description: >
+  Phong cách Art Deco: hình học đối xứng, đường viền vàng kim loại, nền đen/trắng/kem,
+  họa tiết ziczac, quạt, tia nắng; ánh sáng rạp hát, bóng đổ sắc nét.
+
+palette:
+  # Bảng màu bắt buộc sau hậu kỳ (quantize về các màu này)
+  primary:   "#C9A227"   # vàng kim loại
+  secondary: "#1A1A1A"   # đen tuyền
+  accent:    "#F2E8C9"   # kem ngà
+  highlight: "#E8D5A3"   # vàng nhạt
+  shadow:    "#0D0D0D"   # đen sâu
+
+prompt_prefix: >
+  Art Deco style, geometric symmetry, gold and black palette, bold lines,
+  ziggurat and fan motifs, luxurious 1920s aesthetic, high contrast,
+  cinematic lighting, sharp shadows, elegant composition,
+
+prompt_suffix: >
+  , Art Deco illustration, metallic gold accents on dark background,
+  clean geometric shapes, poster art, 1920s glamour, masterpiece
+
+negative_prompt: >
+  photorealistic, modern, minimalist, cartoon, anime, blurry, low quality,
+  watermark, text, logo, nsfw, distorted
+
+generation:
+  width: 256
+  height: 256
+  render_size: 256      # render và giao cùng 256×256
+  steps: 4
+  guidance_scale: 1.0
+  sampler: euler
+  seed: random
+  backend: stable-diffusion.cpp
+  model: sd-turbo-q8_0
+  text: post-process title plate (Python/Pillow)
+  watermark: disabled
+
+postprocess:
+  quantize_colors: 8
+  palette_enforce: true
+  contrast: 1.15
+  sharpen: true
+  border: "gold-frame"   # viền vàng Art Deco quanh ảnh
+"<rfl:parameter name="path":"/mnt/Nigga/Hoc_Tap/HTN(linux)/BT-03-AI-IMAGE-ART-DECO/packages/shared/style.yaml"
