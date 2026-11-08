@@ -26,7 +26,7 @@ EVENTS = "job:events"
 GROUP = "workers"
 CONSUMER = AI_CODE
 
-r = redis.from_url(REDIS_URL, decode_responses=True)
+r = redis.from_url(REDIS_URL, decode_responses=True, socket_timeout=15, socket_connect_timeout=10)
 db = connect(DATABASE_URL, autocommit=True)
 
 # resolve worker_id from ai_code
