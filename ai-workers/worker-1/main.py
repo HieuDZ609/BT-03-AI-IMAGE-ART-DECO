@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import redis
 from PIL import Image, ImageDraw
 from psycopg import connect
+from storage_sync import sync_image, verify_remote_image
 
 AI_CODE = os.getenv("AI_CODE", "1.1")
 REDIS_URL = os.getenv("REDIS_URL", "redis://:B4Deco_Redis_2026!@100.70.241.87:6379/0")
@@ -139,9 +140,10 @@ def process(entry_id, data):
         if WORKER_ID:
             with db.cursor() as cur:
                 row = cur.execute(
-                    "SELECT image_id, image_name FROM images WHERE slug=%s AND worker_id=%s LIMIT 1",
+                    "SELECT image_id, image_name, storage_key FROM images WHERE slug=%s AND worker_id=%s LIMIT 1",
                     (slug, WORKER_ID)).fetchone()
             if row:
+                verify_remote_image(row[2])
                 duration_ms = int((time.time() - t0) * 1000)
                 event = {
                     "job_id": job_id, "status": "DONE", "image_id": str(row[0]),
@@ -158,17 +160,20 @@ def process(entry_id, data):
                 print("SKIP (already exists)", slug, job_id)
                 return
 
-        if os.getenv("AI_BACKEND", "placeholder") == "sd":
-            from ai_engine_1 import generate_image
-            img_bytes, fmt, w, h = generate_image(query)
-        else:
-            img_bytes, fmt, w, h = make_image(slug)
+        if os.getenv("AI_BACKEND") != "sd":
+            raise RuntimeError("AI_BACKEND phải là sd. Hãy nạp .env")
+        from ai_engine_1 import generate_image
+        img_bytes, fmt, w, h = generate_image(query)
         sha = hashlib.sha256(img_bytes).hexdigest()
         storage_key = f"{slug}/{AI_CODE}/{uuid.uuid4().hex}.png"
         os.makedirs(os.path.join(LOCAL_DIR, slug, AI_CODE), exist_ok=True)
         path = os.path.join(LOCAL_DIR, slug, AI_CODE, storage_key.split('/')[-1])
         with open(path, "wb") as f:
             f.write(img_bytes)
+
+        # Chuyển ảnh sang VM4 và xác minh trước khi ghi DONE
+        sync_image(path, storage_key)
+        verify_remote_image(storage_key)
 
         image_id = str(uuid.uuid4())
         with db.cursor() as cur:
