@@ -9,6 +9,7 @@ import json
 import math
 import os
 import signal
+import subprocess
 import threading
 import time
 import uuid
@@ -27,6 +28,10 @@ STREAM = "jobs:generate"
 EVENTS = "job:events"
 GROUP = "workers"
 CONSUMER = AI_CODE
+
+# SSH sync sang VM4 (giống B4.1)
+STORAGE_SSH_TARGET = os.getenv("STORAGE_SSH_TARGET", "root@100.111.232.74")
+STORAGE_REMOTE_DIR = os.getenv("STORAGE_REMOTE_DIR", "/var/lib/bt03/images")
 
 # Palette strictly adhering to packages/shared/style.yaml
 GOLD = "#C9A227"
@@ -242,8 +247,35 @@ def make_art_deco_image(slug: str):
     return data, "png", 256, 256
 
 
+def sync_to_vm4(local_path: str, storage_key: str):
+    """SCP ảnh từ VM2 sang VM4 /var/lib/bt03/images/ để image-service serve được."""
+    if not STORAGE_SSH_TARGET:
+        return
+    # Tạo thư mục remote trước
+    remote_subdir = "/".join(storage_key.split("/")[:-1])
+    remote_dir = f"{STORAGE_REMOTE_DIR}/{remote_subdir}"
+    remote_path = f"{STORAGE_SSH_TARGET}:{STORAGE_REMOTE_DIR}/{storage_key}"
+    ssh_opts = ["-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
+    try:
+        subprocess.run(
+            ["ssh"] + ssh_opts + [STORAGE_SSH_TARGET, f"mkdir -p {remote_dir}"],
+            check=False, timeout=15, capture_output=True
+        )
+        result = subprocess.run(
+            ["scp"] + ssh_opts + [local_path, remote_path],
+            check=False, timeout=30, capture_output=True
+        )
+        if result.returncode == 0:
+            print(f"  [sync✓] Uploaded to VM4: {storage_key}")
+        else:
+            err = result.stderr.decode(errors="ignore").strip()
+            print(f"  [sync✗] SCP failed ({err}) — file chỉ lưu local, chờ SSH key được add")
+    except Exception as e:
+        print(f"  [sync✗] Exception: {e}")
+
+
 def save_and_store_image(slug: str, query: str, job_id: str = None):
-    """Lưu ảnh 256x256 vào ổ đĩa và cập nhật PostgreSQL."""
+    """Lưu ảnh 256x256 vào ổ đĩa, sync sang VM4, và cập nhật PostgreSQL."""
     if not job_id:
         job_id = str(uuid.uuid4())
     t0 = time.time()
@@ -255,6 +287,9 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
     file_path = os.path.join(LOCAL_DIR, slug, AI_CODE, storage_key.split('/')[-1])
     with open(file_path, "wb") as f:
         f.write(img_bytes)
+
+    # Sync file sang VM4 ngay sau khi lưu local
+    sync_to_vm4(file_path, storage_key)
 
     image_id = str(uuid.uuid4())
     if db:
@@ -304,6 +339,7 @@ def seed_initial_images():
         ("skyscraper", "metropolis stepped skyscraper, chrysler tower"),
         ("red-rose", "geometric ruby rose, stained glass art deco"),
         ("classic-clock", "octagonal mantel clock, gold wedges"),
+        ("golden-sword", "golden sword geometric art deco symmetrical"),
     ]
     print(f"[*] Seeding {len(prompts)} Art Deco images into database...")
     for slug, q in prompts:
