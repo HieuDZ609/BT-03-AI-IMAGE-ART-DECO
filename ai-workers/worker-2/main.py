@@ -254,7 +254,7 @@ def sync_to_vm4(local_path: str, storage_key: str):
     remote_path = f"{STORAGE_SSH_TARGET}:{STORAGE_REMOTE_DIR}/{storage_key}"
     try:
         result = subprocess.run(
-            ["rsync", "-az",
+            ["rsync", "-az", "--mkpath",
              "-e", "ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=10",
              local_path, remote_path],
             check=False, timeout=30, capture_output=True
