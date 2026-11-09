@@ -10,6 +10,7 @@ import math
 import os
 import signal
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -158,8 +159,103 @@ def draw_art_deco_border(d, w=256, h=256):
         d.polygon([(px, py - 5), (px + 5, py), (px, py + 5), (px - 5, py)], fill=GOLD)
 
 
-def make_art_deco_image(slug: str):
-    """Sinh ảnh Art Deco 256x256 phong cách cao cấp, nhận diện chủ thể 100%."""
+def find_sd_paths():
+    """Tìm đường dẫn binary sd-cli và model SD-Turbo GGUF trên máy."""
+    possible_bins = [
+        os.getenv("SD_CPP_BIN"),
+        os.path.expanduser("~/ai/bin/sd-cli"),
+        "/opt/bt03/ai/bin/sd-cli",
+        os.path.expanduser("~/ai/sd-cli"),
+    ]
+    possible_models = [
+        os.getenv("SD_MODEL"),
+        os.path.expanduser("~/ai/models/sd-turbo-q8_0.gguf"),
+        "/opt/bt03/ai/models/sd-turbo-q8_0.gguf",
+        os.path.expanduser("~/ai/sd-turbo-q8_0.gguf"),
+    ]
+    bin_path = next((b for b in possible_bins if b and os.path.exists(b)), None)
+    model_path = next((m for m in possible_models if m and os.path.exists(m)), None)
+    return bin_path, model_path
+
+
+def generate_sd_image(query: str):
+    """Sinh ảnh bằng Stable Diffusion Turbo thật (GGUF via sd-cli) chuẩn phong cách Art Deco."""
+    bin_path, model_path = find_sd_paths()
+    if not bin_path or not model_path:
+        return None
+
+    bin_dir = os.path.dirname(bin_path)
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = f"{bin_dir}:{env.get('LD_LIBRARY_PATH', '')}"
+
+    clean_concept = query.replace("-", " ").replace("_", " ").strip()
+    positive = (
+        f"Premium professional illustration of {clean_concept}, subject immediately recognizable, "
+        f"natural proportions, rich details and textures, vibrant harmonious colors, "
+        f"beautiful Art Deco poster design, elegant geometric ornaments, subtle retro pop art accents, "
+        f"refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
+        f"polished commercial illustration, clean complementary background, no text, no watermark"
+    )
+    negative = (
+        "blurry, low quality, distorted, messy, complex background, extra objects, "
+        "multiple subjects, text, letters, watermark, signature, bad proportions, "
+        "noisy details, oversaturated"
+    )
+
+    with tempfile.TemporaryDirectory(prefix="bt03-sd-") as td:
+        out_path = os.path.join(td, "out.png")
+        cmd = [
+            bin_path,
+            "-m", model_path,
+            "-W", "512", "-H", "512",
+            "--cfg-scale", "1.0",
+            "--steps", "4",
+            "--sampling-method", "euler",
+            "-t", os.getenv("AI_THREADS", "4"),
+            "-s", "-1",
+            "-o", out_path,
+            "-p", positive,
+            "-n", negative,
+        ]
+        try:
+            print(f"  [SD-Turbo 🎨] Rendering '{clean_concept}' bằng SD-Turbo Q8 GGUF...")
+            proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=180)
+            if proc.returncode != 0 or not os.path.exists(out_path):
+                err = proc.stderr[-300:] if proc.stderr else (proc.stdout[-300:] if proc.stdout else "")
+                print(f"  [SD-Turbo ⚠️] render failed (code {proc.returncode}): {err}")
+                return None
+
+            with Image.open(out_path) as im:
+                im = im.convert("RGB")
+                # Hậu kỳ Pillow theo chuẩn Worker 1.1:
+                im = ImageOps.autocontrast(im, cutoff=0.2)
+                im = ImageEnhance.Color(im).enhance(1.15)
+                im = ImageEnhance.Contrast(im).enhance(1.07)
+                im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=110, threshold=3))
+
+                # Viền vàng Art Deco sang trọng quanh ảnh
+                w, h = im.size
+                d = ImageDraw.Draw(im)
+                d.rectangle((1, 1, w - 2, h - 2), outline="#C9A227", width=4)
+                d.rectangle((6, 6, w - 7, h - 7), outline="#8A6D17", width=1)
+                d.rectangle((8, 8, w - 9, h - 9), outline="#C9A227", width=1)
+
+                buf = io.BytesIO()
+                im.save(buf, format="PNG", optimize=True)
+                print(f"  [SD-Turbo ✨] Masterpiece sinh thành công ({w}x{h})!")
+                return buf.getvalue(), "png", w, h
+        except Exception as e:
+            print(f"  [SD-Turbo ⚠️] Exception: {e}")
+            return None
+
+
+def make_art_deco_image(slug: str, query: str = None):
+    """Sinh ảnh Art Deco: ưu tiên SD-Turbo thật (nếu có model), fallback sang procedural vector."""
+    concept = query or slug
+    sd_res = generate_sd_image(concept)
+    if sd_res:
+        return sd_res
+
     p = slug.lower()
     img = Image.new("RGB", (256, 256), CREAM)
     d = ImageDraw.Draw(img)
@@ -500,7 +596,7 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
     if not job_id:
         job_id = str(uuid.uuid4())
     t0 = time.time()
-    img_bytes, fmt, w, h = make_art_deco_image(slug)
+    img_bytes, fmt, w, h = make_art_deco_image(slug, query)
     sha = hashlib.sha256(img_bytes).hexdigest()
     storage_key = f"{slug}/{AI_CODE}/{uuid.uuid4().hex}.png"
 
