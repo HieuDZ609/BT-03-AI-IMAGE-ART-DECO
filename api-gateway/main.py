@@ -2,7 +2,7 @@ import os, json, uuid, time, asyncio
 import redis
 import psycopg
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://:B4Deco_Redis_2026!@127.0.0.1:6379/0')
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://bt03:B4Deco_Pg_2026!@127.0.0.1:5432/bt03')
@@ -129,7 +129,7 @@ def metrics():
         n = c.execute('SELECT COUNT(*) FROM images').fetchone()[0]
         j = c.execute('SELECT COUNT(*) FROM generation_jobs').fetchone()[0]
     body = "# HELP images_total Total images\n# TYPE images_total gauge\nimages_total %d\n# HELP jobs_total Total jobs\n# TYPE jobs_total gauge\njobs_total %d\n" % (n, j)
-    return body
+    return PlainTextResponse(body, media_type='text/plain')
 
 
 # ============================================================
