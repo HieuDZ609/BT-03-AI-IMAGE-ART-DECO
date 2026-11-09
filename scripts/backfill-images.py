@@ -20,7 +20,7 @@ from psycopg import connect
 sys.path.insert(0, "/opt/bt03/worker")
 from ai_engine import generate_image  # noqa: E402
 
-DB = os.getenv("DATABASE_URL", "postgresql://bt03:B4Deco_Pg_2026!@100.70.241.87:5432/bt03")
+DB = os.getenv("DATABASE_URL", "postgresql://bt03:B4Deco_Pg_2026!@100.111.232.74:5432/bt03")
 IMAGES_DIR = os.getenv("LOCAL_STORAGE_DIR", "/var/lib/bt03/images")
 WORKER = os.getenv("AI_CODE", "4.1")
 

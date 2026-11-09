@@ -4,7 +4,7 @@ set -euo pipefail
 
 REDIS_PASSWORD="${REDIS_PASSWORD:-B4Deco_Redis_2026!}"
 PG_PASSWORD="${PG_PASSWORD:-B4Deco_Pg_2026!}"
-TAILSCALE_IP="${TAILSCALE_IP:-100.70.241.87}"
+TAILSCALE_IP="${TAILSCALE_IP:-100.111.232.74}"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq

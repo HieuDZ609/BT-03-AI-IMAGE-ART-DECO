@@ -8,7 +8,7 @@ groups:
           severity: critical
         annotations:
           summary: "API Gateway is down"
-          description: "Gateway tại 100.70.241.87:8000 không phản hồi"
+          description: "Gateway tại 100.111.232.74:8000 không phản hồi"
 
       - alert: ImageServiceDown
         expr: up{job="image-service"} == 0

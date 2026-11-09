@@ -5,7 +5,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 // IP Gateway VM4 (qua Tailscale hoặc local Nginx)
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://100.70.241.87:8000';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://100.111.232.74:8000';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

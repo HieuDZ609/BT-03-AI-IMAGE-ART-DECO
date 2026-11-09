@@ -18,8 +18,8 @@ from PIL import Image, ImageDraw
 from psycopg import connect
 
 AI_CODE = os.getenv("AI_CODE", "1.1")
-REDIS_URL = os.getenv("REDIS_URL", "redis://:B4Deco_Redis_2026!@100.70.241.87:6379/0")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bt03:B4Deco_Pg_2026!@100.70.241.87:5432/bt03")
+REDIS_URL = os.getenv("REDIS_URL", "redis://:B4Deco_Redis_2026!@100.111.232.74:6379/0")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bt03:B4Deco_Pg_2026!@100.111.232.74:5432/bt03")
 LOCAL_DIR = os.getenv("LOCAL_STORAGE_DIR", "/tmp/bt03-images")
 STREAM = "jobs:generate"
 EVENTS = "job:events"
