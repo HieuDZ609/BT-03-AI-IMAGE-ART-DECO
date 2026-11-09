@@ -40,7 +40,9 @@ DARK_GOLD = "#8A6D17"
 CREAM = "#F4EAD5"
 BLACK = "#18181B"
 TEAL = "#1E6E6B"
+DARK_TEAL = "#0F3D3B"
 BURGUNDY = "#882D46"
+PALE_GOLD = "#F0E0A0"
 
 r = None
 db = None
@@ -114,132 +116,333 @@ def heartbeat():
         time.sleep(25)
 
 
-def draw_art_deco_frame(d, w=256, h=256):
-    """Vẽ khung viền vàng kim 3px, góc giật cấp stepped chevron và tia sáng nan quạt theo style.yaml."""
-    d.rectangle((1, 1, w - 2, h - 2), outline=GOLD, width=3)
-    d.rectangle((7, 7, w - 8, h - 8), outline=DARK_GOLD, width=1)
+def draw_sunburst_bg(d, cx=128, cy=128):
+    """Nền tia sáng nan quạt xen kẽ 2 màu, đẹp hơn hẳn."""
+    for i in range(72):
+        a_start = i * 5
+        a_end = a_start + 5
+        col = "#EDE3CA" if i % 2 == 0 else CREAM
+        pts = [(cx, cy)]
+        for a in range(a_start, a_end + 1):
+            rad = math.radians(a)
+            pts.append((int(cx + 200 * math.cos(rad)), int(cy + 200 * math.sin(rad))))
+        if len(pts) > 2:
+            d.polygon(pts, fill=col)
 
-    # 4 góc giật cấp stepped chevron
-    steps = 4
-    for cx, cy in [(7, 7), (w - 8, 7), (7, h - 8), (w - 8, h - 8)]:
-        sx = 1 if cx < w / 2 else -1
-        sy = 1 if cy < h / 2 else -1
-        for s in range(steps):
+
+def draw_art_deco_border(d, w=256, h=256):
+    """Khung Art Deco 5 lớp, góc giật cấp 6 bước, hoa văn ở cạnh."""
+    layers = [
+        (0, 0, w - 1, h - 1, GOLD, 4),
+        (5, 5, w - 6, h - 6, BLACK, 1),
+        (7, 7, w - 8, h - 8, GOLD, 2),
+        (11, 11, w - 12, h - 12, DARK_GOLD, 1),
+        (14, 14, w - 15, h - 15, GOLD, 1),
+    ]
+    for x0, y0, x1, y1, col, width in layers:
+        d.rectangle((x0, y0, x1, y1), outline=col, width=width)
+    # Corner stepped chevrons
+    for fcx, fcy in [(16, 16), (w - 16, 16), (16, h - 16), (w - 16, h - 16)]:
+        sx = 1 if fcx < w / 2 else -1
+        sy = 1 if fcy < h / 2 else -1
+        for s in range(6):
             off = s * 4
-            d.line((cx, cy + sy * off, cx + sx * (16 - off), cy + sy * off), fill=GOLD, width=1)
-            d.line((cx + sx * off, cy, cx + sx * off, cy + sy * (16 - off)), fill=GOLD, width=1)
-
-    # Nan quạt tia sáng sunburst nền
-    cx, cy = w // 2, h // 2
-    for deg in range(-60, 61, 12):
-        rad = math.radians(deg - 90)
-        rx = cx + int(140 * math.cos(rad))
-        ry = cy + int(140 * math.sin(rad))
-        d.line((cx, cy + 20, rx, ry), fill="#EADFC7", width=1)
-
-    # Vòm cung điện Art Deco
-    d.arc((36, 26, w - 36, h - 26), start=180, end=0, fill=GOLD, width=1)
-    d.line((36, cy, 36, h - 20), fill=GOLD, width=1)
-    d.line((w - 36, cy, w - 36, h - 20), fill=GOLD, width=1)
+            ln = 24 - off
+            if ln <= 0:
+                break
+            d.line([(fcx, fcy + sy * off), (fcx + sx * ln, fcy + sy * off)], fill=GOLD, width=1)
+            d.line([(fcx + sx * off, fcy), (fcx + sx * off, fcy + sy * ln)], fill=GOLD, width=1)
+        d.polygon([(fcx - 4, fcy), (fcx, fcy - 4), (fcx + 4, fcy), (fcx, fcy + 4)], fill=GOLD)
+    # Mid-side diamond ornaments
+    for px, py in [(w // 2, 7), (w // 2, h - 8), (7, h // 2), (w - 8, h // 2)]:
+        d.polygon([(px, py - 5), (px + 5, py), (px, py + 5), (px - 5, py)], fill=GOLD)
 
 
 def make_art_deco_image(slug: str):
-    """Sinh ảnh Art Deco 256x256 nhận diện chủ thể 100%, tuân thủ style.yaml (không text)."""
+    """Sinh ảnh Art Deco 256x256 phong cách cao cấp, nhận diện chủ thể 100%."""
     p = slug.lower()
     img = Image.new("RGB", (256, 256), CREAM)
     d = ImageDraw.Draw(img)
-    draw_art_deco_frame(d, 256, 256)
+    # Nền sunburst trước, rồi vẽ border lên
+    draw_sunburst_bg(d, 128, 128)
+    draw_art_deco_border(d, 256, 256)
 
     cx, cy = 128, 136
 
-    # 1. CAT / MÈO
-    if any(k in p for k in ["cat", "mèo", "kitten", "feline"]):
-        d.arc((cx - 38, cy - 80, cx + 38, cy - 4), start=180, end=0, fill=GOLD, width=2)
-        body = [(cx, cy - 10), (cx - 24, cy + 25), (cx - 36, cy + 85), (cx + 36, cy + 85), (cx + 24, cy + 25)]
-        d.polygon(body, fill=BLACK, outline=GOLD)
-        d.line((cx - 22, cy + 25, cx, cy + 42), fill=GOLD, width=2)
-        d.line((cx + 22, cy + 25, cx, cy + 42), fill=GOLD, width=2)
-        head = [(cx, cy - 62), (cx - 20, cy - 26), (cx, cy - 14), (cx + 20, cy - 26)]
-        d.polygon(head, fill=BLACK, outline=GOLD)
-        d.polygon([(cx - 18, cy - 42), (cx - 24, cy - 75), (cx - 6, cy - 50)], fill=BLACK, outline=GOLD)
-        d.polygon([(cx + 18, cy - 42), (cx + 24, cy - 75), (cx + 6, cy - 50)], fill=BLACK, outline=GOLD)
-        d.polygon([(cx - 14, cy - 32), (cx - 8, cy - 35), (cx - 4, cy - 32)], fill=TEAL)
-        d.polygon([(cx + 14, cy - 32), (cx + 8, cy - 35), (cx + 4, cy - 32)], fill=TEAL)
-        d.polygon([(cx - 48, cy + 85), (cx + 48, cy + 85), (cx + 42, cy + 96), (cx - 42, cy + 96)], fill=TEAL, outline=GOLD)
+    # 1. CAT — Egyptian Bastet Art Deco
+    if any(k in p for k in ["cat", "mèo", "kitten", "feline", "bastet"]):
+        # Body — elegant vase silhouette
+        body = [(cx, cy - 20), (cx - 16, cy - 10), (cx - 28, cy + 20),
+                (cx - 32, cy + 70), (cx - 36, cy + 85), (cx + 36, cy + 85),
+                (cx + 32, cy + 70), (cx + 28, cy + 20), (cx + 16, cy - 10)]
+        d.polygon(body, fill=BLACK, outline=GOLD, width=2)
+        # Chest jewel
+        d.polygon([(cx, cy + 15), (cx - 10, cy + 35), (cx, cy + 50), (cx + 10, cy + 35)],
+                  fill=BURGUNDY, outline=GOLD, width=1)
+        # Gem collar
+        gem_colors = [TEAL, GOLD, BURGUNDY, GOLD, TEAL, GOLD, BURGUNDY]
+        for i, offset in enumerate(range(-3, 4)):
+            x = cx + offset * 8
+            d.ellipse((x - 5, cy - 18, x + 5, cy - 8), fill=gem_colors[i], outline=GOLD, width=1)
+        # Head
+        d.ellipse((cx - 28, cy - 78, cx + 28, cy - 28), fill=BLACK, outline=GOLD, width=2)
+        # Ears
+        d.polygon([(cx - 16, cy - 72), (cx - 28, cy - 98), (cx - 6, cy - 74)], fill=BLACK, outline=GOLD, width=1)
+        d.polygon([(cx + 16, cy - 72), (cx + 28, cy - 98), (cx + 6, cy - 74)], fill=BLACK, outline=GOLD, width=1)
+        d.polygon([(cx - 14, cy - 73), (cx - 22, cy - 90), (cx - 8, cy - 73)], fill=BURGUNDY)
+        d.polygon([(cx + 14, cy - 73), (cx + 22, cy - 90), (cx + 8, cy - 73)], fill=BURGUNDY)
+        # Almond eyes
+        d.polygon([(cx - 20, cy - 54), (cx - 12, cy - 60), (cx - 4, cy - 54), (cx - 12, cy - 48)],
+                  fill=TEAL, outline=GOLD, width=1)
+        d.polygon([(cx + 4, cy - 54), (cx + 12, cy - 60), (cx + 20, cy - 54), (cx + 12, cy - 48)],
+                  fill=TEAL, outline=GOLD, width=1)
+        d.ellipse((cx - 14, cy - 56, cx - 10, cy - 52), fill=BLACK)
+        d.ellipse((cx + 10, cy - 56, cx + 14, cy - 52), fill=BLACK)
+        d.ellipse((cx - 13, cy - 55, cx - 12, cy - 54), fill=CREAM)
+        d.ellipse((cx + 12, cy - 55, cx + 13, cy - 54), fill=CREAM)
+        # Nose
+        d.polygon([(cx, cy - 45), (cx - 4, cy - 40), (cx + 4, cy - 40)], fill=BURGUNDY)
+        # Crown
+        for i in range(5):
+            x = cx + (i - 2) * 10
+            d.polygon([(x, cy - 80), (x - 4, cy - 93), (x + 4, cy - 93)], fill=GOLD)
+        d.line([(cx - 24, cy - 80), (cx + 24, cy - 80)], fill=GOLD, width=2)
+        # Base plinth
+        d.rectangle((cx - 40, cy + 85, cx + 40, cy + 97), fill=BLACK, outline=GOLD, width=2)
+        d.rectangle((cx - 35, cy + 90, cx + 35, cy + 97), fill=TEAL, outline=GOLD, width=1)
+        d.ellipse((cx - 36, cy + 80, cx - 20, cy + 88), fill=BLACK, outline=GOLD, width=1)
+        d.ellipse((cx + 20, cy + 80, cx + 36, cy + 88), fill=BLACK, outline=GOLD, width=1)
 
-    # 2. DOG / CHÓ
+    # 2. DOG — Art Deco Noble Hound
     elif any(k in p for k in ["dog", "chó", "hound", "puppy"]):
-        d.arc((cx - 45, cy - 75, cx + 45, cy + 15), start=180, end=0, fill=GOLD, width=2)
-        body = [(cx - 26, cy - 10), (cx - 36, cy + 45), (cx - 32, cy + 85), (cx + 28, cy + 85), (cx + 36, cy + 45), (cx + 18, cy - 10)]
-        d.polygon(body, fill=BLACK, outline=GOLD)
-        d.polygon([(cx - 18, cy + 10), (cx + 18, cy + 10), (cx, cy + 60)], fill=BURGUNDY, outline=GOLD)
-        d.polygon([(cx - 14, cy - 12), (cx - 12, cy - 45), (cx + 12, cy - 45), (cx + 14, cy - 12)], fill=BLACK, outline=GOLD)
-        d.polygon([(cx, cy - 68), (cx - 18, cy - 50), (cx - 4, cy - 30), (cx + 24, cy - 42), (cx + 20, cy - 65)], fill=BLACK, outline=GOLD)
-        d.polygon([(cx + 20, cy - 65), (cx + 28, cy - 55), (cx + 22, cy - 50)], fill=GOLD)
-        d.ellipse((cx, cy - 54, cx + 5, cy - 49), fill=GOLD)
-        d.polygon([(cx - 14, cy - 35), (cx + 16, cy - 35), (cx + 14, cy - 27), (cx - 12, cy - 27)], fill=GOLD)
-        d.rectangle((cx - 45, cy + 85, cx + 45, cy + 96), fill=BLACK, outline=GOLD, width=2)
+        # Body
+        body = [(cx - 28, cy - 15), (cx - 32, cy + 20), (cx - 28, cy + 70),
+                (cx + 28, cy + 70), (cx + 32, cy + 20), (cx + 28, cy - 15),
+                (cx + 20, cy - 25), (cx - 20, cy - 25)]
+        d.polygon(body, fill=BLACK, outline=GOLD, width=2)
+        # Chest shield
+        d.polygon([(cx, cy - 10), (cx - 15, cy + 20), (cx, cy + 45), (cx + 15, cy + 20)],
+                  fill=BURGUNDY, outline=GOLD, width=1)
+        # Collar
+        d.rectangle((cx - 24, cy - 30, cx + 24, cy - 20), fill=TEAL, outline=GOLD, width=2)
+        d.ellipse((cx - 5, cy - 26, cx + 5, cy - 16), fill=GOLD, outline=DARK_GOLD, width=1)
+        # Head
+        d.ellipse((cx - 26, cy - 80, cx + 26, cy - 25), fill=BLACK, outline=GOLD, width=2)
+        # Muzzle
+        d.ellipse((cx - 14, cy - 55, cx + 14, cy - 36), fill=BLACK, outline=GOLD, width=1)
+        d.ellipse((cx - 8, cy - 54, cx + 8, cy - 46), fill="#333340", outline=GOLD, width=1)
+        # Eyes
+        d.ellipse((cx - 20, cy - 72, cx - 10, cy - 62), fill=GOLD, outline=DARK_GOLD, width=1)
+        d.ellipse((cx + 10, cy - 72, cx + 20, cy - 62), fill=GOLD, outline=DARK_GOLD, width=1)
+        d.ellipse((cx - 17, cy - 69, cx - 13, cy - 65), fill=BLACK)
+        d.ellipse((cx + 13, cy - 69, cx + 17, cy - 65), fill=BLACK)
+        d.ellipse((cx - 16, cy - 68, cx - 15, cy - 67), fill=CREAM)
+        d.ellipse((cx + 15, cy - 68, cx + 16, cy - 67), fill=CREAM)
+        # Ears
+        d.polygon([(cx - 18, cy - 72), (cx - 30, cy - 45), (cx - 20, cy - 25), (cx - 14, cy - 55)],
+                  fill=BLACK, outline=GOLD, width=1)
+        d.polygon([(cx + 18, cy - 72), (cx + 30, cy - 45), (cx + 20, cy - 25), (cx + 14, cy - 55)],
+                  fill=BLACK, outline=GOLD, width=1)
+        # Legs + paws
+        for lx in [cx - 20, cx + 20]:
+            d.rectangle((lx - 8, cy + 70, lx + 8, cy + 90), fill=BLACK, outline=GOLD, width=1)
+            d.ellipse((lx - 10, cy + 86, lx + 10, cy + 96), fill=BLACK, outline=GOLD, width=1)
+        d.rectangle((cx - 42, cy + 94, cx + 42, cy + 102), fill=TEAL, outline=GOLD, width=2)
 
-    # 3. CAR / XE HƠI
+    # 3. CAR — Art Deco Streamliner
     elif any(k in p for k in ["car", "xe", "automobile", "vehicle"]):
-        d.polygon([(cx - 40, cy - 15), (cx - 15, cy - 40), (cx + 25, cy - 40), (cx + 50, cy - 15)], fill=TEAL, outline=GOLD, width=2)
-        d.polygon([(cx - 28, cy - 18), (cx - 12, cy - 34), (cx + 5, cy - 34), (cx + 3, cy - 18)], fill=CREAM, outline=GOLD)
-        d.polygon([(cx + 8, cy - 18), (cx + 10, cy - 34), (cx + 24, cy - 34), (cx + 38, cy - 18)], fill=CREAM, outline=GOLD)
-        d.polygon([(cx - 82, cy + 18), (cx - 86, cy), (cx - 45, cy - 15), (cx + 65, cy - 15), (cx + 86, cy + 5), (cx + 82, cy + 20)], fill=BLACK, outline=GOLD, width=2)
-        d.line((cx - 80, cy - 2, cx + 75, cy - 2), fill=GOLD, width=2)
-        d.rectangle((cx - 80, cy + 20, cx + 80, cy + 26), fill=BURGUNDY, outline=GOLD)
-        for wx in [cx - 52, cx + 52]:
-            d.ellipse((wx - 20, cy + 8, wx + 20, cy + 48), fill=BLACK, outline=GOLD, width=2)
-            d.ellipse((wx - 6, cy + 22, wx + 6, cy + 34), fill=GOLD)
+        # Road base
+        d.rectangle((cx - 90, cy + 42, cx + 90, cy + 52), fill=DARK_GOLD, outline=GOLD, width=1)
+        # Shadow
+        d.ellipse((cx - 60, cy + 36, cx + 60, cy + 48), fill=DARK_GOLD)
+        # Body streamlined
+        body = [(cx - 85, cy + 30), (cx - 70, cy + 10), (cx - 30, cy - 25),
+                (cx + 20, cy - 30), (cx + 65, cy - 20), (cx + 90, cy + 5),
+                (cx + 90, cy + 32), (cx - 85, cy + 32)]
+        d.polygon(body, fill=BLACK, outline=GOLD, width=2)
+        # Cabin
+        cabin = [(cx - 20, cy + 10), (cx - 10, cy - 22),
+                 (cx + 30, cy - 26), (cx + 55, cy + 10)]
+        d.polygon(cabin, fill=TEAL, outline=GOLD, width=2)
+        # Windows
+        d.polygon([(cx - 5, cy + 8), (cx + 2, cy - 18),
+                   (cx + 22, cy - 22), (cx + 25, cy + 8)], fill=DARK_TEAL, outline=GOLD, width=1)
+        d.polygon([(cx + 28, cy + 8), (cx + 30, cy - 20),
+                   (cx + 50, cy - 15), (cx + 52, cy + 8)], fill=DARK_TEAL, outline=GOLD, width=1)
+        # Fender stripe
+        d.line([(cx - 80, cy + 15), (cx - 50, cy - 5), (cx + 70, cy - 5)], fill=GOLD, width=2)
+        # Grille
+        d.rectangle((cx + 72, cy + 5, cx + 90, cy + 28), fill=CREAM, outline=GOLD, width=1)
+        for gy in range(cy + 8, cy + 28, 5):
+            d.line([(cx + 72, gy), (cx + 90, gy)], fill=DARK_GOLD, width=1)
+        # Bumpers
+        d.rectangle((cx - 90, cy + 28, cx - 82, cy + 35), fill=CREAM, outline=GOLD, width=1)
+        d.rectangle((cx + 82, cy + 28, cx + 90, cy + 35), fill=CREAM, outline=GOLD, width=1)
+        # Wheels with spokes
+        for wx in [cx - 50, cx + 45]:
+            wy = cy + 32
+            d.ellipse((wx - 22, wy - 14, wx + 22, wy + 14), fill=BLACK, outline=GOLD, width=3)
+            d.ellipse((wx - 15, wy - 10, wx + 15, wy + 10), fill=DARK_GOLD, outline=GOLD, width=1)
+            d.ellipse((wx - 6, wy - 4, wx + 6, wy + 4), fill=GOLD)
+            for sa in range(0, 360, 45):
+                ar = math.radians(sa)
+                d.line([(int(wx + 5 * math.cos(ar)), int(wy + 4 * math.sin(ar))),
+                        (int(wx + 13 * math.cos(ar)), int(wy + 9 * math.sin(ar)))],
+                       fill=GOLD, width=1)
+        # Exhaust ports
+        for ev in [cy - 5, cy + 2, cy + 9]:
+            d.rectangle((cx - 85, ev, cx - 65, ev + 4), fill=GOLD, outline=DARK_GOLD, width=1)
 
-    # 4. BUILDING / TÒA THÁP / SKYSCRAPER
+    # 4. SKYSCRAPER — Art Deco Ziggurat
     elif any(k in p for k in ["building", "skyscraper", "tower", "tháp", "nhà"]):
-        d.line((cx, cy - 95, cx, cy - 65), fill=GOLD, width=3)
-        d.polygon([(cx - 6, cy - 65), (cx + 6, cy - 65), (cx, cy - 95)], fill=GOLD)
-        tiers = [(12, 18, -48, BLACK, TEAL), (22, 28, -25, BLACK, GOLD), (34, 38, 5, BLACK, TEAL), (48, 50, 42, BLACK, GOLD)]
-        for hw, th, ypos, f_col, o_col in tiers:
-            d.rectangle((cx - hw, cy + ypos, cx + hw, cy + ypos + th), fill=f_col, outline=o_col, width=2)
-            for off in range(-hw + 6, hw - 4, 7):
-                d.line((cx + off, cy + ypos + 3, cx + off, cy + ypos + th - 3), fill=LIGHT_GOLD, width=1)
-        d.rectangle((cx - 56, cy + 90, cx + 56, cy + 98), fill=BURGUNDY, outline=GOLD, width=2)
+        # Ziggurat tiers — more elaborate
+        tiers = [
+            (8, 15, cy - 100, BLACK, GOLD),
+            (14, 18, cy - 85, TEAL, GOLD),
+            (22, 20, cy - 67, BLACK, GOLD),
+            (32, 20, cy - 47, TEAL, GOLD),
+            (44, 22, cy - 25, BLACK, GOLD),
+            (58, 24, cy - 1, TEAL, GOLD),
+            (74, 28, cy + 23, BLACK, GOLD),
+            (88, 20, cy + 51, TEAL, GOLD),
+        ]
+        for hw, th, top_y, fc, oc in tiers:
+            d.rectangle((cx - hw, top_y, cx + hw, top_y + th), fill=fc, outline=oc, width=2)
+            if hw > 15:
+                for col_x in range(cx - hw + 8, cx + hw - 6, 10):
+                    d.rectangle((col_x, top_y + 3, col_x + 5, top_y + th - 3),
+                                 fill=LIGHT_GOLD, outline=DARK_GOLD, width=1)
+        # Antenna spire
+        d.line([(cx, cy - 115), (cx, cy - 100)], fill=GOLD, width=2)
+        d.polygon([(cx, cy - 120), (cx - 4, cy - 105), (cx + 4, cy - 105)], fill=GOLD)
+        d.ellipse((cx - 3, cy - 123, cx + 3, cy - 117), fill=LIGHT_GOLD)
+        # Entrance arch
+        d.arc((cx - 18, cy + 62, cx + 18, cy + 90), start=180, end=0, fill=GOLD, width=2)
+        d.line([(cx - 18, cy + 76), (cx - 18, cy + 90)], fill=GOLD, width=2)
+        d.line([(cx + 18, cy + 76), (cx + 18, cy + 90)], fill=GOLD, width=2)
+        d.rectangle((cx - 90, cy + 71, cx + 90, cy + 80), fill=BURGUNDY, outline=GOLD, width=2)
 
-    # 5. FLOWER / ROSE / HOA HỒNG
+    # 5. ROSE / FLOWER — Geometric Art Deco Bloom
     elif any(k in p for k in ["flower", "rose", "hoa"]):
-        d.arc((cx - 65, cy - 65, cx + 65, cy + 65), start=0, end=360, fill=GOLD, width=2)
-        for rot in range(0, 360, 45):
-            r_ang = math.radians(rot)
-            p1 = (cx + int(38 * math.cos(r_ang)), cy + int(38 * math.sin(r_ang)))
-            p2 = (cx + int(60 * math.cos(r_ang + 0.3)), cy + int(60 * math.sin(r_ang + 0.3)))
-            p3 = (cx + int(60 * math.cos(r_ang - 0.3)), cy + int(60 * math.sin(r_ang - 0.3)))
-            d.polygon([p1, p2, p3], fill=BURGUNDY, outline=GOLD, width=2)
-        d.ellipse((cx - 18, cy - 18, cx + 18, cy + 18), fill=GOLD, outline=BLACK, width=2)
-        d.ellipse((cx - 8, cy - 8, cx + 8, cy + 8), fill=BLACK)
-        d.line((cx, cy + 65, cx, cy + 96), fill=TEAL, width=3)
-
-    # 6. CLOCK / ĐỒNG HỒ
-    elif any(k in p for k in ["clock", "đồng hồ", "watch"]):
-        pts = []
+        # Stem and leaves
+        d.line([(cx, cy + 68), (cx, cy + 100)], fill=TEAL, width=4)
+        d.polygon([(cx, cy + 65), (cx - 25, cy + 48), (cx - 15, cy + 78)], fill=TEAL, outline=GOLD, width=1)
+        d.polygon([(cx, cy + 65), (cx + 25, cy + 48), (cx + 15, cy + 78)], fill=TEAL, outline=GOLD, width=1)
+        # Outer petals (8)
+        for i in range(8):
+            ang = math.radians(i * 45)
+            pts = [
+                (int(cx + 20 * math.cos(ang)), int(cy + 20 * math.sin(ang))),
+                (int(cx + 55 * math.cos(ang + 0.3)), int(cy + 55 * math.sin(ang + 0.3))),
+                (int(cx + 68 * math.cos(ang)), int(cy + 68 * math.sin(ang))),
+                (int(cx + 55 * math.cos(ang - 0.3)), int(cy + 55 * math.sin(ang - 0.3))),
+            ]
+            d.polygon(pts, fill=BURGUNDY, outline=GOLD, width=2)
+        # Middle petals (8)
         for i in range(8):
             ang = math.radians(i * 45 + 22.5)
-            pts.append((cx + int(64 * math.cos(ang)), cy + int(64 * math.sin(ang))))
-        d.polygon(pts, fill=BLACK, outline=GOLD, width=3)
-        d.ellipse((cx - 50, cy - 50, cx + 50, cy + 50), fill=CREAM, outline=DARK_GOLD, width=2)
+            pts = [
+                (int(cx + 14 * math.cos(ang)), int(cy + 14 * math.sin(ang))),
+                (int(cx + 38 * math.cos(ang + 0.25)), int(cy + 38 * math.sin(ang + 0.25))),
+                (int(cx + 46 * math.cos(ang)), int(cy + 46 * math.sin(ang))),
+                (int(cx + 38 * math.cos(ang - 0.25)), int(cy + 38 * math.sin(ang - 0.25))),
+            ]
+            d.polygon(pts, fill=LIGHT_GOLD, outline=DARK_GOLD, width=1)
+        # Outer ring
+        d.arc((cx - 70, cy - 70, cx + 70, cy + 70), start=0, end=360, fill=GOLD, width=2)
+        d.arc((cx - 56, cy - 56, cx + 56, cy + 56), start=0, end=360, fill=DARK_GOLD, width=1)
+        # Center gem
+        d.ellipse((cx - 20, cy - 20, cx + 20, cy + 20), fill=GOLD, outline=BLACK, width=2)
+        d.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), fill=BURGUNDY, outline=GOLD, width=1)
+        for i in range(6):
+            ang = math.radians(i * 60)
+            d.line([(cx, cy), (int(cx + 9 * math.cos(ang)), int(cy + 9 * math.sin(ang)))],
+                   fill=DARK_GOLD, width=1)
+
+    # 6. CLOCK — Ornate Octagonal Mantel Clock
+    elif any(k in p for k in ["clock", "đồng hồ", "watch"]):
+        # Outer octagon body
+        oct_pts = [(int(cx + 72 * math.cos(math.radians(i * 45 - 22.5))),
+                    int(cy + 72 * math.sin(math.radians(i * 45 - 22.5)))) for i in range(8)]
+        d.polygon(oct_pts, fill=BLACK, outline=GOLD, width=3)
+        oct2_pts = [(int(cx + 62 * math.cos(math.radians(i * 45 - 22.5))),
+                     int(cy + 62 * math.sin(math.radians(i * 45 - 22.5)))) for i in range(8)]
+        d.polygon(oct2_pts, fill=TEAL, outline=GOLD, width=1)
+        # Clock face
+        d.ellipse((cx - 54, cy - 54, cx + 54, cy + 54), fill=CREAM, outline=DARK_GOLD, width=2)
+        # Hour markers
         for hr in range(12):
             ang = math.radians(hr * 30 - 90)
-            d.line((cx + int(40 * math.cos(ang)), cy + int(40 * math.sin(ang)), cx + int(48 * math.cos(ang)), cy + int(48 * math.sin(ang))), fill=BLACK, width=2)
+            mx, my = int(cx + 44 * math.cos(ang)), int(cy + 44 * math.sin(ang))
+            if hr % 3 == 0:
+                d.polygon([(mx, my - 6), (mx + 4, my), (mx, my + 6), (mx - 4, my)], fill=BLACK)
+            else:
+                d.polygon([(mx, my - 3), (mx + 2, my), (mx, my + 3), (mx - 2, my)], fill=DARK_GOLD)
+        # Hands
         ha = math.radians(300 - 90)
-        d.line((cx, cy, cx + int(26 * math.cos(ha)), cy + int(26 * math.sin(ha))), fill=BLACK, width=4)
+        d.line([(cx, cy), (int(cx + 28 * math.cos(ha)), int(cy + 28 * math.sin(ha)))],
+               fill=BLACK, width=4)
         ma = math.radians(60 - 90)
-        d.line((cx, cy, cx + int(36 * math.cos(ma)), cy + int(36 * math.sin(ma))), fill=BLACK, width=2)
-        d.ellipse((cx - 4, cy - 4, cx + 4, cy + 4), fill=GOLD)
-        d.polygon([(cx - 55, cy + 70), (cx + 55, cy + 70), (cx + 45, cy + 92), (cx - 45, cy + 92)], fill=TEAL, outline=GOLD, width=2)
+        d.line([(cx, cy), (int(cx + 40 * math.cos(ma)), int(cy + 40 * math.sin(ma)))],
+               fill=BLACK, width=2)
+        d.line([(cx, cy), (int(cx + 44 * math.cos(math.radians(90))),
+                           int(cy + 44 * math.sin(math.radians(90))))], fill=BURGUNDY, width=1)
+        d.ellipse((cx - 6, cy - 6, cx + 6, cy + 6), fill=GOLD, outline=BLACK, width=1)
+        d.ellipse((cx - 3, cy - 3, cx + 3, cy + 3), fill=BLACK)
+        # Base/stand
+        d.polygon([(cx - 15, cy + 73), (cx + 15, cy + 73),
+                   (cx + 30, cy + 92), (cx - 30, cy + 92)], fill=BLACK, outline=GOLD, width=2)
+        d.rectangle((cx - 36, cy + 92, cx + 36, cy + 102), fill=TEAL, outline=GOLD, width=2)
 
-    # 7. CHỦ THỂ MẶC ĐỊNH / EMBLEM HÌNH HỌC ART DECO
+    # 7. SWORD — Art Deco Golden Sword
+    elif any(k in p for k in ["sword", "kiếm", "blade", "golden-sword"]):
+        # Blade — tapered polygon
+        blade = [(cx - 10, cy + 15), (cx + 10, cy + 15),
+                 (cx + 5, cy - 55), (cx, cy - 100), (cx - 5, cy - 55)]
+        d.polygon(blade, fill=LIGHT_GOLD, outline=GOLD, width=2)
+        # Blade fuller
+        d.polygon([(cx - 3, cy + 10), (cx + 3, cy + 10),
+                   (cx + 1, cy - 85), (cx, cy - 98), (cx - 1, cy - 85)],
+                  fill=PALE_GOLD, outline=DARK_GOLD, width=1)
+        # Edge highlight
+        d.line([(cx - 7, cy + 12), (cx - 2, cy - 80)], fill=CREAM, width=1)
+        # Runes on blade
+        for ry in [cy - 10, cy - 30, cy - 50]:
+            d.polygon([(cx, ry), (cx - 6, ry + 8), (cx + 6, ry + 8)], fill=GOLD, outline=DARK_GOLD, width=1)
+        # Crossguard with wing extensions
+        d.polygon([(cx - 50, cy + 18), (cx - 42, cy + 10), (cx - 20, cy + 25),
+                   (cx - 20, cy + 32), (cx - 42, cy + 25)], fill=GOLD, outline=DARK_GOLD, width=2)
+        d.polygon([(cx + 50, cy + 18), (cx + 42, cy + 10), (cx + 20, cy + 25),
+                   (cx + 20, cy + 32), (cx + 42, cy + 25)], fill=GOLD, outline=DARK_GOLD, width=2)
+        d.rectangle((cx - 20, cy + 12, cx + 20, cy + 32), fill=GOLD, outline=DARK_GOLD, width=2)
+        d.ellipse((cx - 8, cy + 17, cx + 8, cy + 27), fill=TEAL, outline=GOLD, width=1)
+        # Grip
+        for i in range(5):
+            y = cy + 32 + i * 10
+            col = GOLD if i % 2 == 0 else DARK_GOLD
+            d.rectangle((cx - 7, y, cx + 7, y + 9), fill=col, outline=DARK_GOLD, width=1)
+        # Pommel
+        d.ellipse((cx - 16, cy + 82, cx + 16, cy + 100), fill=GOLD, outline=DARK_GOLD, width=2)
+        d.ellipse((cx - 9, cy + 86, cx + 9, cy + 96), fill=BURGUNDY, outline=GOLD, width=1)
+        # Base
+        d.rectangle((cx - 40, cy + 98, cx + 40, cy + 108), fill=BLACK, outline=GOLD, width=2)
+
+    # 8. DEFAULT — Art Deco 8-pointed Star Emblem
     else:
-        d.polygon([(cx, cy - 75), (cx + 70, cy), (cx, cy + 75), (cx - 70, cy)], fill=BLACK, outline=GOLD, width=3)
-        d.polygon([(cx, cy - 60), (cx + 56, cy), (cx, cy + 60), (cx - 56, cy)], fill=TEAL, outline=LIGHT_GOLD, width=2)
-        d.polygon([(cx, cy - 40), (cx + 38, cy), (cx, cy + 40), (cx - 38, cy)], fill=BURGUNDY, outline=GOLD, width=2)
-        d.ellipse((cx - 18, cy - 18, cx + 18, cy + 18), fill=GOLD, outline=CREAM, width=2)
+        # 8-pointed star
+        for ang_deg in range(0, 360, 45):
+            ang = math.radians(ang_deg)
+            d.polygon([
+                (int(cx + 8 * math.cos(ang + math.pi / 2)), int(cy + 8 * math.sin(ang + math.pi / 2))),
+                (int(cx + 80 * math.cos(ang)), int(cy + 80 * math.sin(ang))),
+                (int(cx + 8 * math.cos(ang - math.pi / 2)), int(cy + 8 * math.sin(ang - math.pi / 2))),
+            ], fill=LIGHT_GOLD, outline=GOLD, width=1)
+        # Concentric diamond layers
+        for size, col in [(70, BLACK), (55, TEAL), (40, BLACK), (28, BURGUNDY), (16, GOLD)]:
+            d.polygon([(cx, cy - size), (cx + size // 2, cy),
+                       (cx, cy + size), (cx - size // 2, cy)], fill=col, outline=GOLD, width=2)
+        d.ellipse((cx - 10, cy - 10, cx + 10, cy + 10), fill=GOLD, outline=BLACK, width=2)
+        d.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=BLACK)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
