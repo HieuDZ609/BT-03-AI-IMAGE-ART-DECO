@@ -159,35 +159,8 @@ def draw_art_deco_border(d, w=256, h=256):
         d.polygon([(px, py - 5), (px + 5, py), (px, py + 5), (px - 5, py)], fill=GOLD)
 
 
-def find_sd_paths():
-    """Tìm đường dẫn binary sd-cli và model SD-Turbo GGUF trên máy."""
-    possible_bins = [
-        os.getenv("SD_CPP_BIN"),
-        os.path.expanduser("~/ai/bin/sd-cli"),
-        "/opt/bt03/ai/bin/sd-cli",
-        os.path.expanduser("~/ai/sd-cli"),
-    ]
-    possible_models = [
-        os.getenv("SD_MODEL"),
-        os.path.expanduser("~/ai/models/sd-turbo-q8_0.gguf"),
-        "/opt/bt03/ai/models/sd-turbo-q8_0.gguf",
-        os.path.expanduser("~/ai/sd-turbo-q8_0.gguf"),
-    ]
-    bin_path = next((b for b in possible_bins if b and os.path.exists(b)), None)
-    model_path = next((m for m in possible_models if m and os.path.exists(m)), None)
-    return bin_path, model_path
-
-
-def generate_sd_image(query: str):
-    """Sinh ảnh bằng Stable Diffusion Turbo thật (GGUF via sd-cli) chuẩn phong cách Art Deco."""
-    bin_path, model_path = find_sd_paths()
-    if not bin_path or not model_path:
-        return None
-
-    bin_dir = os.path.dirname(bin_path)
-    env = os.environ.copy()
-    env["LD_LIBRARY_PATH"] = f"{bin_dir}:{env.get('LD_LIBRARY_PATH', '')}"
-
+def generate_sd_image(query: str, slug: str = None):
+    """Sinh ảnh bằng SD-Turbo GGUF qua SSH trực tiếp trên VM4 (tránh lỗi GLIBC_2.38)."""
     clean_concept = query.replace("-", " ").replace("_", " ").strip()
     positive = (
         f"Premium professional illustration of {clean_concept}, subject immediately recognizable, "
@@ -202,30 +175,43 @@ def generate_sd_image(query: str):
         "noisy details, oversaturated"
     )
 
-    with tempfile.TemporaryDirectory(prefix="bt03-sd-") as td:
-        out_path = os.path.join(td, "out.png")
-        cmd = [
-            bin_path,
-            "-m", model_path,
-            "-W", "512", "-H", "512",
-            "--cfg-scale", "1.0",
-            "--steps", "4",
-            "--sampling-method", "euler",
-            "-t", os.getenv("AI_THREADS", "4"),
-            "-s", "-1",
-            "-o", out_path,
-            "-p", positive,
-            "-n", negative,
-        ]
-        try:
-            print(f"  [SD-Turbo 🎨] Rendering '{clean_concept}' bằng SD-Turbo Q8 GGUF...")
-            proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=180)
-            if proc.returncode != 0 or not os.path.exists(out_path):
-                err = proc.stderr[-300:] if proc.stderr else (proc.stdout[-300:] if proc.stdout else "")
-                print(f"  [SD-Turbo ⚠️] render failed (code {proc.returncode}): {err}")
-                return None
+    remote_tmp = f"/tmp/sd_{uuid.uuid4().hex[:8]}.png"
+    sd_cmd = (
+        f"LD_LIBRARY_PATH=/opt/bt03/ai/bin /opt/bt03/ai/bin/sd-cli "
+        f"-m /opt/bt03/ai/models/sd-turbo-q8_0.gguf "
+        f"-W 512 -H 512 --cfg-scale 1.0 --steps 4 --sampling-method euler "
+        f"-t 4 -s -1 -o {remote_tmp} "
+        f"-p \"{positive}\" -n \"{negative}\""
+    )
 
-            with Image.open(out_path) as im:
+    ssh_cmd = [
+        "ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+        STORAGE_SSH_TARGET, sd_cmd
+    ]
+
+    try:
+        print(f"  [SD-Turbo 🎨] Calling SD-Turbo on VM4 for '{clean_concept}'...")
+        proc = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=180)
+        if proc.returncode != 0:
+            err = proc.stderr[-200:] if proc.stderr else proc.stdout[-200:]
+            print(f"  [SD-Turbo ⚠️] Remote SD failed: {err}")
+            return None
+
+        # Kéo ảnh kết quả về để hậu kỳ Pillow
+        with tempfile.TemporaryDirectory(prefix="bt03-sd-") as td:
+            local_tmp = os.path.join(td, "out.png")
+            scp_cmd = [
+                "scp", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                f"{STORAGE_SSH_TARGET}:{remote_tmp}", local_tmp
+            ]
+            subprocess.run(scp_cmd, check=True, timeout=20, capture_output=True)
+            # Dọn dẹp file tạm trên VM4
+            subprocess.run(
+                ["ssh", "-o", "BatchMode=yes", STORAGE_SSH_TARGET, f"rm -f {remote_tmp}"],
+                check=False, timeout=10
+            )
+
+            with Image.open(local_tmp) as im:
                 im = im.convert("RGB")
                 # Hậu kỳ Pillow theo chuẩn Worker 1.1:
                 im = ImageOps.autocontrast(im, cutoff=0.2)
@@ -244,15 +230,15 @@ def generate_sd_image(query: str):
                 im.save(buf, format="PNG", optimize=True)
                 print(f"  [SD-Turbo ✨] Masterpiece sinh thành công ({w}x{h})!")
                 return buf.getvalue(), "png", w, h
-        except Exception as e:
-            print(f"  [SD-Turbo ⚠️] Exception: {e}")
-            return None
+    except Exception as e:
+        print(f"  [SD-Turbo ⚠️] Exception: {e}")
+        return None
 
 
 def make_art_deco_image(slug: str, query: str = None):
-    """Sinh ảnh Art Deco: ưu tiên SD-Turbo thật (nếu có model), fallback sang procedural vector."""
+    """Sinh ảnh Art Deco: ưu tiên SD-Turbo thật (qua VM4), fallback sang procedural vector."""
     concept = query or slug
-    sd_res = generate_sd_image(concept)
+    sd_res = generate_sd_image(concept, slug)
     if sd_res:
         return sd_res
 
@@ -615,13 +601,19 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
                 """INSERT INTO images (image_id, image_name, slug, prompt, style_id, worker_id,
                    storage_key, sha256, width, height, format, file_size)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (sha256) DO UPDATE SET
+                   ON CONFLICT (slug, worker_id) DO UPDATE SET
+                       image_name=EXCLUDED.image_name,
+                       prompt=EXCLUDED.prompt,
                        storage_key=EXCLUDED.storage_key,
-                       image_name=EXCLUDED.image_name""",
+                       sha256=EXCLUDED.sha256,
+                       width=EXCLUDED.width,
+                       height=EXCLUDED.height,
+                       format=EXCLUDED.format,
+                       file_size=EXCLUDED.file_size""",
                 (image_id, f"{slug} {AI_CODE}.png", slug, query, "deco-v1", WORKER_ID,
                  storage_key, sha, w, h, fmt, len(img_bytes)),
             )
-            cur.execute("SELECT image_id FROM images WHERE sha256=%s", (sha,))
+            cur.execute("SELECT image_id FROM images WHERE slug=%s AND worker_id=%s", (slug, WORKER_ID))
             row = cur.fetchone()
             if row:
                 image_id = str(row[0])
