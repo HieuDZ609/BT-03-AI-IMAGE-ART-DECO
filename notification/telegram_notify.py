@@ -112,6 +112,45 @@ def status():
     )
     return jsonify({"sent": ok, "stats": system_stats()})
 
+
+import threading
+
+_last_update_id = 0
+
+def _poll_telegram():
+    global _last_update_id
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+            resp = requests.get(url, params={"offset": _last_update_id + 1, "timeout": 10}, timeout=15)
+            data = resp.json()
+            for upd in data.get("result", []):
+                _last_update_id = max(_last_update_id, upd.get("update_id", 0))
+                msg = upd.get("message", {})
+                text = (msg.get("text") or "").strip().lower()
+                chat = msg.get("chat", {})
+                cid = chat.get("id")
+                if not cid:
+                    continue
+                if text in ("/status", "status", "/cpu", "/ram"):
+                    reply = "<b>[BT-03 STATUS]</b>\n" + system_stats() + f"\n<i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                                 json={"chat_id": cid, "text": reply, "parse_mode": "HTML"}, timeout=10)
+                elif text in ("/help", "help", "/start"):
+                    reply = ("<b>[BT-03]</b> Lệnh hỗ trợ:\n"
+                             "/status - xem CPU/RAM hiện tại\n"
+                             "/test - gửi tin test")
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                                 json={"chat_id": cid, "text": reply, "parse_mode": "HTML"}, timeout=10)
+        except Exception as e:
+            print(f"[POLL ERROR] {e}")
+        import time
+        time.sleep(2)
+
+if TOKEN and CHAT_ID:
+    threading.Thread(target=_poll_telegram, daemon=True).start()
+    print("[POLL] Telegram command polling started")
+
 if __name__ == "__main__":
     print("BT-03 Notify Service starting on :8089")
     # Gửi tin khởi động
