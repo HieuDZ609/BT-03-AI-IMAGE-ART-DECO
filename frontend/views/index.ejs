@@ -97,16 +97,13 @@
   </footer>
 
   <script>
-    // Debounce search 300ms
+    // Tìm kiếm chỉ khi bấm Enter / nút "TÌM KIẾM" (không tự submit khi đang gõ).
     const searchInput = document.getElementById('search-input');
-    let timer;
-    searchInput.addEventListener('input', () => {
-      clearTimeout(timer);
-      const val = searchInput.value.trim();
-      if (!val) return;
-      timer = setTimeout(() => {
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
         document.getElementById('search-form').submit();
-      }, 300);
+      }
     });
   </script>
 </body>
