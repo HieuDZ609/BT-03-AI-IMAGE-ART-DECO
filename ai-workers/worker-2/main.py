@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 
 import redis
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 from psycopg import connect
 
 AI_CODE = os.getenv("AI_CODE", "2.1")
@@ -443,6 +443,13 @@ def make_art_deco_image(slug: str):
                        (cx, cy + size), (cx - size // 2, cy)], fill=col, outline=GOLD, width=2)
         d.ellipse((cx - 10, cy - 10, cx + 10, cy + 10), fill=GOLD, outline=BLACK, width=2)
         d.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=BLACK)
+
+    # ── Hậu kỳ Pillow (tham khảo Worker 1.1) ──────────────────────────────
+    img = ImageOps.autocontrast(img, cutoff=0.2)          # Tăng dải tương phản
+    img = ImageEnhance.Color(img).enhance(1.15)            # Màu sắc rực rỡ hơn
+    img = ImageEnhance.Contrast(img).enhance(1.07)         # Tương phản sắc nét
+    img = img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=110, threshold=3))  # Nét hơn
+    # ───────────────────────────────────────────────────────────────────────
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
