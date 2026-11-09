@@ -248,34 +248,45 @@ def make_art_deco_image(slug: str):
 
 
 def sync_to_vm4(local_path: str, storage_key: str):
-    """SCP ảnh từ VM2 sang VM4 /var/lib/bt03/images/ để image-service serve được."""
+    """rsync ảnh từ VM2 sang VM4 /var/lib/bt03/images/ để image-service serve được."""
     if not STORAGE_SSH_TARGET:
         return
-    # Tạo thư mục remote trước
-    remote_subdir = "/".join(storage_key.split("/")[:-1])
-    remote_dir = f"{STORAGE_REMOTE_DIR}/{remote_subdir}"
     remote_path = f"{STORAGE_SSH_TARGET}:{STORAGE_REMOTE_DIR}/{storage_key}"
-    ssh_opts = ["-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
     try:
-        subprocess.run(
-            ["ssh"] + ssh_opts + [STORAGE_SSH_TARGET, f"mkdir -p {remote_dir}"],
-            check=False, timeout=15, capture_output=True
-        )
         result = subprocess.run(
-            ["scp"] + ssh_opts + [local_path, remote_path],
+            ["rsync", "-az",
+             "-e", "ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=10",
+             local_path, remote_path],
             check=False, timeout=30, capture_output=True
         )
         if result.returncode == 0:
-            print(f"  [sync✓] Uploaded to VM4: {storage_key}")
+            print(f"  [sync✓] rsync → VM4: {storage_key}")
         else:
             err = result.stderr.decode(errors="ignore").strip()
-            print(f"  [sync✗] SCP failed ({err}) — file chỉ lưu local, chờ SSH key được add")
+            print(f"  [sync✗] rsync failed ({err})")
+    except FileNotFoundError:
+        # rsync không có → fallback scp
+        ssh_opts = ["-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
+        remote_subdir = "/".join(storage_key.split("/")[:-1])
+        subprocess.run(
+            ["ssh"] + ssh_opts + [STORAGE_SSH_TARGET, f"mkdir -p {STORAGE_REMOTE_DIR}/{remote_subdir}"],
+            check=False, timeout=15, capture_output=True
+        )
+        result = subprocess.run(
+            ["scp"] + ssh_opts + [local_path, f"{STORAGE_SSH_TARGET}:{STORAGE_REMOTE_DIR}/{storage_key}"],
+            check=False, timeout=30, capture_output=True
+        )
+        if result.returncode == 0:
+            print(f"  [sync✓] scp → VM4: {storage_key}")
+        else:
+            err = result.stderr.decode(errors="ignore").strip()
+            print(f"  [sync✗] scp failed ({err})")
     except Exception as e:
         print(f"  [sync✗] Exception: {e}")
 
 
 def save_and_store_image(slug: str, query: str, job_id: str = None):
-    """Lưu ảnh 256x256 vào ổ đĩa, sync sang VM4, và cập nhật PostgreSQL."""
+    """Sinh ảnh, sync sang VM4 TRƯỚC, rồi mới ghi vào PostgreSQL."""
     if not job_id:
         job_id = str(uuid.uuid4())
     t0 = time.time()
@@ -288,7 +299,7 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
     with open(file_path, "wb") as f:
         f.write(img_bytes)
 
-    # Sync file sang VM4 ngay sau khi lưu local
+    # Sync sang VM4 TRƯỚC khi ghi DB (theo yêu cầu nhóm trưởng)
     sync_to_vm4(file_path, storage_key)
 
     image_id = str(uuid.uuid4())
