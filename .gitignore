@@ -1,0 +1,50 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# ---- Biến môi trường & bí mật ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- Dữ liệu & mô hình (không commit) ----
+models/
+*.safetensors
+*.ckpt
+*.onnx
+*.gguf
+data/
+backups/
+postgres-data/
+minio-data/
+redis-data/
+
+# ---- Log & file tạm ----
+*.log
+logs/
+tmp/
+.DS_Store
+Thumbs.db
+~$*
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.swp

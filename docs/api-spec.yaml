@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: BT-03 AI Image Warehouse API
+  version: 1.0.0
+  description: Kho ảnh trực tuyến thông minh — Art Deco
+servers:
+  - url: https://example.com/api
+paths:
+  /search:
+    get:
+      summary: Tìm ảnh theo query (tiếng Anh)
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Danh sách ảnh (có thể rỗng → tự sinh)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+  /jobs/{job_id}:
+    get:
+      summary: Trạng thái job
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Trạng thái
+  /jobs/{job_id}/stream:
+    get:
+      summary: SSE stream trạng thái job
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: text/event-stream
+  /images:
+    get:
+      summary: Danh sách ảnh mới nhất
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 30 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Danh sách
+  /images/{image_id}:
+    get:
+      summary: Chi tiết ảnh
+      parameters:
+        - name: image_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Chi tiết
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: text/plain
+components:
+  schemas:
+    SearchResponse:
+      type: object
+      properties:
+        hit: { type: boolean }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ImageMeta' }
+        job_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, nullable: true }
+    ImageMeta:
+      type: object
+      properties:
+        image_id: { type: string, format: uuid }
+        image_name: { type: string }
+        slug: { type: string }
+        prompt: { type: string, nullable: true }
+        style_id: { type: string }
+        ai_code: { type: string, nullable: true }
+        storage_key: { type: string }
+        sha256: { type: string }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        format: { type: string, nullable: true }
+        file_size: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+"

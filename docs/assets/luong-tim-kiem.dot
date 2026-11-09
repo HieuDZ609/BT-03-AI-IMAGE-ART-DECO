@@ -1,0 +1,40 @@
+
+digraph FLOW {
+  graph [rankdir=TB, fontname="DejaVu Sans", nodesep=0.30, ranksep=0.33, bgcolor="white", pad=0.12];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=9.5,
+         fillcolor="#F7F1E3", color="#B8912F", penwidth=1.1, margin="0.13,0.06"];
+  edge  [fontname="DejaVu Sans", fontsize=8.5, color="#5B5B5B", arrowsize=0.6];
+
+  a [label="Người dùng nhập từ khoá tiếng Anh", fillcolor="#E9DFC6"];
+  b [label="Frontend  →  Gateway\nGET /api/v1/search?q=…"];
+  c [label="Truy vấn PostgreSQL\nILIKE + pg_trgm similarity ≥ 0,45"];
+  d [label="Có ảnh phù hợp?", shape=diamond, style="filled",
+     fillcolor="#FFF3D6", margin="0.02,0.02", height=1.0, width=2.2];
+  e [label="Trả danh sách ảnh\n(50 ảnh / trang, mới nhất trước)", fillcolor="#DFF0DA", color="#4F7F3F"];
+  f [label="Tạo job + SETNX lock\nXADD jobs:generate"];
+  g [label="Phản hồi 200\n{hit:false, job_id}"];
+  h [label="Worker lấy job\nXREADGROUP"];
+  i [label="Sinh ảnh AI\n+ hậu kỳ Art Deco"];
+  j [label="Upload MinIO\nINSERT images\nXACK + XADD job:events"];
+  k [label="SSE /jobs/id/events\n→ hiển thị ảnh vừa sinh", fillcolor="#DFF0DA", color="#4F7F3F"];
+
+  note1 [shape=note, style="filled", fillcolor="#FFF9E6", color="#C9A227",
+         fontsize=8.2, label="Quá 60 giây: giữ trạng thái\n“Đang sinh ảnh…” + poll 2 giây\n→ KHÔNG trả “không có kết quả”"];
+  note2 [shape=note, style="filled", fillcolor="#FFF9E6", color="#C9A227",
+         fontsize=8.2, label="Worker chết giữa job:\nXAUTOCLAIM sau 120 giây\n→ giao worker khác, attempts++"];
+  note3 [shape=note, style="filled", fillcolor="#FBE9E9", color="#B54848",
+         fontsize=8.2, label="Toàn bộ worker offline:\ntrả 503 SYSTEM_DEGRADED\n+ cảnh báo Telegram / Discord"];
+
+  a -> b -> c -> d;
+  d -> e [label=" Có "];
+  d -> f [label=" Không "];
+  f -> g -> h -> i -> j -> k;
+
+  k -> note1 [style=dotted, arrowhead=none, color="#C9A227"];
+  j -> note2 [style=dotted, arrowhead=none, color="#C9A227"];
+  h -> note3 [style=dotted, arrowhead=none, color="#B54848"];
+
+  {rank=same; k; note1;}
+  {rank=same; j; note2;}
+  {rank=same; h; note3;}
+}
