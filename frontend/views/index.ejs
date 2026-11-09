@@ -30,6 +30,12 @@
       <h1>Kho ảnh minh hoạ Art Deco</h1>
       <p class="intro-copy">Ảnh được sinh liên tục bởi 5 AI Worker độc lập và lưu trữ vĩnh viễn.</p>
       <div class="search-status" id="search-status"></div>
+    <% if (selectedWorker) { %>
+      <div class="filter-banner" style="text-align:center;margin:12px 0;color:var(--gold-bright);">
+        Đang hiển thị ảnh của <strong><%= selectedWorker %></strong>
+        <a href="/" style="margin-left:12px;color:var(--text-muted);text-decoration:underline;">✕ Bỏ lọc</a>
+      </div>
+    <% } %>
     </section>
 
     <!-- Grid 50 ảnh -->
@@ -81,15 +87,21 @@
       
       <div class="stats-grid" id="stats-grid">
         <% if (stats && stats.length > 0) { %>
+          <a class="stat-card <%= !selectedWorker ? 'is-active' : '' %>" href="/" style="text-decoration:none;color:inherit;">
+            <div class="stat-status online"></div>
+            <span class="ai-badge">TẤT CẢ</span>
+            <div class="count">∞</div>
+            <div class="meta">Hiển thị toàn bộ ảnh</div>
+          </a>
           <% stats.forEach(function(st) { %>
-            <div class="stat-card">
+            <a class="stat-card <%= selectedWorker === st.ai_code ? 'is-active' : '' %>" href="/?worker=<%= encodeURIComponent(st.ai_code) %>" style="text-decoration:none;color:inherit;">
               <div class="stat-status <%= st.online ? 'online' : 'offline' %>" 
                    title="<%= st.online ? 'ONLINE' : 'OFFLINE' %>"></div>
               <span class="ai-badge">MÃ AI: <%= st.ai_code %></span>
               <div class="count"><%= st.total_generated || st.total || 0 %></div>
               <div class="meta">Thành viên: <%= st.member_name || 'Nhóm B4' %></div>
               <div class="meta">Model: <%= st.model_name %></div>
-            </div>
+            </a>
           <% }); %>
         <% } %>
       </div>

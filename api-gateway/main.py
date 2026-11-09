@@ -153,21 +153,33 @@ def search_v1(q: str = Query(...), page: int = 1, size: int = 50):
     return res
 
 @app.get('/api/v1/images')
-def images_v1(page: int = 1, size: int = 50):
+def images_v1(page: int = 1, size: int = 50, worker: str = None):
     offset = (page - 1) * size
+    where = ''
+    params = []
+    if worker:
+        where = 'WHERE w.ai_code = %s'
+        params.append(worker)
     with psycopg.connect(DATABASE_URL) as c:
         rows = c.execute(
-            """SELECT i.image_id, i.image_name, i.slug, i.style_id, i.storage_key, i.sha256,
+            f"""SELECT i.image_id, i.image_name, i.slug, i.style_id, i.storage_key, i.sha256,
                       i.width, i.height, i.format, i.file_size, i.created_at,
                       w.ai_code, w.model_name
                FROM images i LEFT JOIN ai_workers w ON w.worker_id = i.worker_id
+               {where}
                ORDER BY i.created_at DESC LIMIT %s OFFSET %s""",
-            (size, offset)).fetchall()
-        total = c.execute("SELECT COUNT(*) FROM images").fetchone()[0]
+            (*params, size, offset)).fetchall()
+        if worker:
+            total = c.execute(
+                "SELECT COUNT(*) FROM images i LEFT JOIN ai_workers w ON w.worker_id=i.worker_id WHERE w.ai_code=%s",
+                (worker,)).fetchone()[0]
+        else:
+            total = c.execute("SELECT COUNT(*) FROM images").fetchone()[0]
     keys = ['image_id','image_name','slug','style_id','storage_key','sha256','width','height','format','file_size','created_at','ai_code','model_name']
     items = [dict(zip(keys, row)) for row in rows]
     return {'items': items, 'images': items, 'page': page, 'size': size,
-            'total': total, 'totalPages': max(1, (total + size - 1) // size)}
+            'total': total, 'totalPages': max(1, (total + size - 1) // size),
+            'worker': worker}
 
 @app.get('/api/v1/images/{image_id}/file')
 def image_file_v1(image_id: str):
@@ -235,8 +247,8 @@ def search_v1_noprefix(q: str = Query(...), page: int = 1, size: int = 50):
     return search_v1(q=q, page=page, size=size)
 
 @app.get('/v1/images')
-def images_v1_noprefix(page: int = 1, size: int = 50):
-    return images_v1(page=page, size=size)
+def images_v1_noprefix(page: int = 1, size: int = 50, worker: str = None):
+    return images_v1(page=page, size=size, worker=worker)
 
 @app.get('/v1/images/{image_id}/file')
 def image_file_v1_noprefix(image_id: str):

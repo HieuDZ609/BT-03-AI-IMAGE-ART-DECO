@@ -47,12 +47,13 @@ app.get('/api/v1/jobs/:id/events', (req, res) => {
 app.get('/', async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const query = (req.query.q || '').trim();
+  const worker = (req.query.worker || '').trim();
 
   try {
     // 1. Gọi API Search / List trên API Gateway
     const searchUrl = query 
-      ? `${GATEWAY_URL}/api/v1/search?q=${encodeURIComponent(query)}&page=${page}`
-      : `${GATEWAY_URL}/api/v1/images?page=${page}&size=50`;
+      ? `${GATEWAY_URL}/api/v1/search?q=${encodeURIComponent(query)}&page=${page}${worker ? '&worker=' + encodeURIComponent(worker) : ''}`
+      : `${GATEWAY_URL}/api/v1/images?page=${page}&size=50${worker ? '&worker=' + encodeURIComponent(worker) : ''}`;
 
     const apiRes = await axios.get(searchUrl);
     const data = apiRes.data;
@@ -80,6 +81,7 @@ app.get('/', async (req, res) => {
       currentPage: data.page || page,
       totalPages: data.totalPages || Math.max(1, Math.ceil((data.total || 0) / 50)),
       search: query,
+      selectedWorker: worker || '',
       stats: stats
     });
   } catch (err) {
