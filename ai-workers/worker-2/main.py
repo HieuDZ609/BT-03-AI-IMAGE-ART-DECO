@@ -8,6 +8,7 @@ import io
 import json
 import math
 import os
+import random
 import signal
 import subprocess
 import tempfile
@@ -159,13 +160,24 @@ def draw_art_deco_border(d, w=256, h=256):
         d.polygon([(px, py - 5), (px + 5, py), (px, py + 5), (px - 5, py)], fill=GOLD)
 
 
+ART_DECO_STYLES = [
+    "opulent gold filigree and deep obsidian black, majestic 1920s Gatsby luxury, intricate chevron patterns",
+    "vibrant emerald teal and polished bronze, vintage luxury travel poster style, sleek aerodynamic curves",
+    "radiant sunburst rays, geometric symmetry, golden champagne highlights, Metropolis vintage cinema aesthetic",
+    "stained glass mosaic Art Deco, bold ruby burgundy and warm amber gold, theatrical dramatic lighting",
+    "ornate architectural bas-relief, brass and marble texture, stepped ziggurat framing, timeless classic",
+]
+
+
 def generate_sd_image(query: str, slug: str = None):
     """Sinh ảnh bằng SD-Turbo GGUF qua SSH trực tiếp trên VM4 (tránh lỗi GLIBC_2.38)."""
     clean_concept = query.replace("-", " ").replace("_", " ").strip()
+    style_touch = random.choice(ART_DECO_STYLES)
+    seed = random.randint(1, 2147483647)
     positive = (
         f"Premium professional illustration of {clean_concept}, subject immediately recognizable, "
         f"natural proportions, rich details and textures, vibrant harmonious colors, "
-        f"beautiful Art Deco poster design, elegant geometric ornaments, subtle retro pop art accents, "
+        f"beautiful Art Deco poster design, {style_touch}, "
         f"refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
         f"polished commercial illustration, clean complementary background, no text, no watermark"
     )
@@ -180,7 +192,7 @@ def generate_sd_image(query: str, slug: str = None):
         f"LD_LIBRARY_PATH=/opt/bt03/ai/bin /opt/bt03/ai/bin/sd-cli "
         f"-m /opt/bt03/ai/models/sd-turbo-q8_0.gguf "
         f"-W 512 -H 512 --cfg-scale 1.0 --steps 4 --sampling-method euler "
-        f"-t 4 -s -1 -o {remote_tmp} "
+        f"-t 4 -s {seed} -o {remote_tmp} "
         f"-p \"{positive}\" -n \"{negative}\""
     )
 
@@ -642,8 +654,9 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
 
 
 def seed_initial_images():
-    """Sinh sẵn ảnh mẫu vào database để tăng số lượng và chứng minh năng lực."""
+    """Sinh ảnh Art Deco đa dạng, bỏ qua nếu slug đã có trong DB (không đè ảnh cũ)."""
     prompts = [
+        # Bộ ảnh chuẩn theo phân công
         ("black-dog", "black dog, symmetrical centered, art deco vector"),
         ("cat", "regal bastet cat, art deco gold accents"),
         ("vintage-car", "classic streamliner roadster, art deco 1930s"),
@@ -651,14 +664,28 @@ def seed_initial_images():
         ("red-rose", "geometric ruby rose, stained glass art deco"),
         ("classic-clock", "octagonal mantel clock, gold wedges"),
         ("golden-sword", "golden sword geometric art deco symmetrical"),
+        # Bộ kiệt tác thần thoại, sinh vật & tương lai độc đáo mới lạ
+        ("golden-dragon", "majestic imperial golden dragon, ornate art deco mythic beast"),
+        ("phoenix", "resplendent fiery phoenix bird, golden feathers rising, art deco celestial"),
+        ("cyber-car", "futuristic 1930s aerodyne streamliner roadster, chrome velocity speed"),
+        ("ancient-palace", "monumental stepped ziggurat palace, babylon art deco architecture"),
+        ("royal-tiger", "regal fierce tiger, geometric symmetry, black and gold art deco poster"),
+        ("cosmic-galaxy", "celestial spiral galaxy, golden stars, art deco astronomical map"),
+        ("steam-locomotive", "streamlined art deco locomotive train, speed lines, 1930s poster"),
     ]
-    print(f"[*] Seeding {len(prompts)} Art Deco images into database...")
+    print(f"[*] Kiểm tra & cập nhật kho ảnh ({len(prompts)} chủ thể phong phú)...")
     for slug, q in prompts:
+        if db and WORKER_ID:
+            with db.cursor() as cur:
+                cur.execute("SELECT image_id FROM images WHERE slug=%s AND worker_id=%s LIMIT 1", (slug, WORKER_ID))
+                if cur.fetchone():
+                    print(f"  [✓ Giữ nguyên] '{slug}' đã có trong kho, bỏ qua không sinh đè.")
+                    continue
         try:
             img_id = save_and_store_image(slug, q)
-            print(f"  + Seeded {slug} -> ID: {img_id}")
+            print(f"  + [Mới] Đã sinh kiệt tác '{slug}' -> ID: {img_id}")
         except Exception as e:
-            print(f"  - Seed failed for {slug}:", e)
+            print(f"  - Lỗi khi sinh {slug}:", e)
 
 
 def process(entry_id: str, data: dict):
