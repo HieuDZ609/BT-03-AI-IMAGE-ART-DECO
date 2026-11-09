@@ -160,31 +160,56 @@ def draw_art_deco_border(d, w=256, h=256):
         d.polygon([(px, py - 5), (px + 5, py), (px, py + 5), (px - 5, py)], fill=GOLD)
 
 
-ART_DECO_STYLES = [
-    "opulent gold filigree and deep obsidian black, majestic 1920s Gatsby luxury, intricate chevron patterns",
-    "vibrant emerald teal and polished bronze, vintage luxury travel poster style, sleek aerodynamic curves",
-    "radiant sunburst rays, geometric symmetry, golden champagne highlights, Metropolis vintage cinema aesthetic",
-    "stained glass mosaic Art Deco, bold ruby burgundy and warm amber gold, theatrical dramatic lighting",
-    "ornate architectural bas-relief, brass and marble texture, stepped ziggurat framing, timeless classic",
-]
+def add_title_plate(im: Image.Image, text: str, band: int = 34) -> Image.Image:
+    """Gắn bảng tên Art Deco sang trọng ở đáy ảnh giúp nhận diện chủ thể 100%."""
+    w, h = im.size
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, h - band, w, h), fill="#141416")
+    d.line([(0, h - band), (w, h - band)], fill="#C9A227", width=2)
+    d.line([(0, h - band + 2), (w, h - band + 2)], fill="#8A6D17", width=1)
+
+    label = ' '.join(text.replace('-', ' ').replace('_', ' ').split()).upper()
+    if len(label) > 22:
+        label = label[:21] + '…'
+
+    try:
+        from PIL import ImageFont
+        font = ImageFont.load_default()
+        bbox = d.textbbox((0, 0), label, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+    except Exception:
+        font = None
+        tw = len(label) * 7
+        th = 10
+
+    tx = max(8, (w - tw) // 2)
+    ty = h - band + (band - th) // 2 - 1
+    d.text((tx, ty), label, fill="#F4EAD5", font=font)
+
+    for dx in [tx - 16, tx + tw + 16]:
+        if 8 < dx < w - 8:
+            dy = h - band // 2
+            d.polygon([(dx, dy - 4), (dx + 4, dy), (dx, dy + 4), (dx - 4, dy)], fill="#C9A227")
+    return im
 
 
 def generate_sd_image(query: str, slug: str = None):
-    """Sinh ảnh bằng SD-Turbo GGUF qua SSH trực tiếp trên VM4 (tránh lỗi GLIBC_2.38)."""
-    clean_concept = query.replace("-", " ").replace("_", " ").strip()
-    style_touch = random.choice(ART_DECO_STYLES)
+    """Sinh ảnh bằng SD-Turbo: chủ thể nổi bật 100%, nét căng, không trừu tượng khó hiểu."""
+    clean_concept = (slug or query).replace("-", " ").replace("_", " ").strip()
     seed = random.randint(1, 2147483647)
+
+    # Đưa chủ thể lên đầu prompt để SD-Turbo tập trung tuyệt đối vào chủ thể
     positive = (
-        f"Premium professional illustration of {clean_concept}, subject immediately recognizable, "
-        f"natural proportions, rich details and textures, vibrant harmonious colors, "
-        f"beautiful Art Deco poster design, {style_touch}, "
-        f"refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
-        f"polished commercial illustration, clean complementary background, no text, no watermark"
+        f"A magnificent centered portrait illustration of {clean_concept}, the {clean_concept} is the prominent central subject, "
+        f"clear recognizable features of a {clean_concept}, full anatomy, crisp detailed depiction, "
+        f"luxurious Art Deco poster background with elegant geometric gold accents, dramatic cinematic lighting, "
+        f"vibrant harmonious colors, sharp focus on the {clean_concept}, masterpiece artwork, no text, no watermark"
     )
     negative = (
-        "blurry, low quality, distorted, messy, complex background, extra objects, "
-        "multiple subjects, text, letters, watermark, signature, bad proportions, "
-        "noisy details, oversaturated"
+        f"blurry, distorted, unrecognizable, deformed, abstract mess, missing features of {clean_concept}, "
+        f"hidden subject, chaotic patterns covering the subject, mutated, bad anatomy, low quality, "
+        f"extra limbs, messy background, cropped, watermark, text"
     )
 
     remote_tmp = f"/tmp/sd_{uuid.uuid4().hex[:8]}.png"
@@ -202,7 +227,7 @@ def generate_sd_image(query: str, slug: str = None):
     ]
 
     try:
-        print(f"  [SD-Turbo 🎨] Calling SD-Turbo on VM4 for '{clean_concept}'...")
+        print(f"  [SD-Turbo 🎨] Rendering rõ nét chủ thể: '{clean_concept}'...")
         proc = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=180)
         if proc.returncode != 0:
             err = proc.stderr[-200:] if proc.stderr else proc.stdout[-200:]
@@ -217,7 +242,6 @@ def generate_sd_image(query: str, slug: str = None):
                 f"{STORAGE_SSH_TARGET}:{remote_tmp}", local_tmp
             ]
             subprocess.run(scp_cmd, check=True, timeout=20, capture_output=True)
-            # Dọn dẹp file tạm trên VM4
             subprocess.run(
                 ["ssh", "-o", "BatchMode=yes", STORAGE_SSH_TARGET, f"rm -f {remote_tmp}"],
                 check=False, timeout=10
@@ -231,12 +255,20 @@ def generate_sd_image(query: str, slug: str = None):
                 im = ImageEnhance.Contrast(im).enhance(1.07)
                 im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=110, threshold=3))
 
-                # Viền vàng Art Deco sang trọng quanh ảnh
+                # Gắn bảng tên Art Deco ở đáy ảnh + viền vàng hoàng kim
                 w, h = im.size
+                im = add_title_plate(im, clean_concept, band=34)
                 d = ImageDraw.Draw(im)
                 d.rectangle((1, 1, w - 2, h - 2), outline="#C9A227", width=4)
                 d.rectangle((6, 6, w - 7, h - 7), outline="#8A6D17", width=1)
-                d.rectangle((8, 8, w - 9, h - 9), outline="#C9A227", width=1)
+
+                buf = io.BytesIO()
+                im.save(buf, format="PNG", optimize=True)
+                print(f"  [SD-Turbo ✨] Masterpiece '{clean_concept}' sinh thành công ({w}x{h})!")
+                return buf.getvalue(), "png", w, h
+    except Exception as e:
+        print(f"  [SD-Turbo ⚠️] Exception: {e}")
+        return None
 
                 buf = io.BytesIO()
                 im.save(buf, format="PNG", optimize=True)
@@ -654,38 +686,51 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
 
 
 def seed_initial_images():
-    """Sinh ảnh Art Deco đa dạng, bỏ qua nếu slug đã có trong DB (không đè ảnh cũ)."""
-    prompts = [
-        # Bộ ảnh chuẩn theo phân công
-        ("black-dog", "black dog, symmetrical centered, art deco vector"),
-        ("cat", "regal bastet cat, art deco gold accents"),
-        ("vintage-car", "classic streamliner roadster, art deco 1930s"),
-        ("skyscraper", "metropolis stepped skyscraper, chrysler tower"),
-        ("red-rose", "geometric ruby rose, stained glass art deco"),
-        ("classic-clock", "octagonal mantel clock, gold wedges"),
-        ("golden-sword", "golden sword geometric art deco symmetrical"),
-        # Bộ kiệt tác thần thoại, sinh vật & tương lai độc đáo mới lạ
-        ("golden-dragon", "majestic imperial golden dragon, ornate art deco mythic beast"),
-        ("phoenix", "resplendent fiery phoenix bird, golden feathers rising, art deco celestial"),
-        ("cyber-car", "futuristic 1930s aerodyne streamliner roadster, chrome velocity speed"),
-        ("ancient-palace", "monumental stepped ziggurat palace, babylon art deco architecture"),
-        ("royal-tiger", "regal fierce tiger, geometric symmetry, black and gold art deco poster"),
-        ("cosmic-galaxy", "celestial spiral galaxy, golden stars, art deco astronomical map"),
-        ("steam-locomotive", "streamlined art deco locomotive train, speed lines, 1930s poster"),
+    """Mỗi lần bật AI chỉ sinh DUY NHẤT 1 chủ đề mới.
+    Chủ thể rõ nét 100%, không bị trừu tượng.
+    """
+    candidates = [
+        ("royal-tiger", "regal roaring tiger face, wild majestic predator, prominent stripes"),
+        ("golden-dragon", "mythical imperial golden dragon, serpentine body, fierce eyes"),
+        ("phoenix", "blazing fire phoenix bird spreading wings, sharp feathers, radiant avian"),
+        ("cyber-car", "classic 1930s luxury roadster automobile, sleek streamlined car body"),
+        ("ancient-palace", "grand stepped palace building, opulent architectural columns, facade"),
+        ("cosmic-galaxy", "spiral galaxy of glowing stars in deep space, cosmic nebula"),
+        ("steam-locomotive", "powerful vintage steam train locomotive, steel wheels, railway engine"),
+        ("golden-sword", "ornate medieval knight sword, gleaming sharp blade, crossguard hilt"),
+        ("red-rose", "blooming red rose flower with distinct ruby petals and green leaves"),
+        ("classic-clock", "round vintage roman numeral clock, golden mechanical hands"),
+        ("bastet-cat", "graceful black egyptian cat, sharp pointed ears, alert eyes"),
+        ("noble-hound", "loyal black hunting hound dog, alert posture, canine snout"),
+        ("skyscraper", "metropolis art deco skyscraper tower, tiered spire"),
     ]
-    print(f"[*] Kiểm tra & cập nhật kho ảnh ({len(prompts)} chủ thể phong phú)...")
-    for slug, q in prompts:
-        if db and WORKER_ID:
-            with db.cursor() as cur:
+
+    target = None
+    if db and WORKER_ID:
+        with db.cursor() as cur:
+            for slug, q in candidates:
                 cur.execute("SELECT image_id FROM images WHERE slug=%s AND worker_id=%s LIMIT 1", (slug, WORKER_ID))
-                if cur.fetchone():
-                    print(f"  [✓ Giữ nguyên] '{slug}' đã có trong kho, bỏ qua không sinh đè.")
-                    continue
-        try:
-            img_id = save_and_store_image(slug, q)
-            print(f"  + [Mới] Đã sinh kiệt tác '{slug}' -> ID: {img_id}")
-        except Exception as e:
-            print(f"  - Lỗi khi sinh {slug}:", e)
+                if not cur.fetchone():
+                    target = (slug, q)
+                    break
+
+    if not target:
+        extras = [
+            ("golden-eagle", "majestic soaring golden eagle bird, sharp beak, widespread wings"),
+            ("panther", "stealthy black panther feline, gleaming golden eyes, sleek predator"),
+            ("vintage-airplane", "1930s twin-engine passenger monoplane aircraft, propellers"),
+            ("lighthouse", "tall coastal lighthouse tower, beam of light, ocean waves"),
+            ("samurai-helmet", "ornate japanese samurai kabuto helmet, golden crest"),
+        ]
+        target = random.choice(extras)
+
+    slug, q = target
+    print(f"[*] Khởi động AI: Sinh 1 kiệt tác cho chủ đề '{slug}' (Rõ nét chủ thể 100%)...")
+    try:
+        img_id = save_and_store_image(slug, q)
+        print(f"  [✓ Hoàn tất] Đã lưu kiệt tác '{slug}' -> ID: {img_id}")
+    except Exception as e:
+        print(f"  [✗ Lỗi] Không thể sinh '{slug}': {e}")
 
 
 def process(entry_id: str, data: dict):
