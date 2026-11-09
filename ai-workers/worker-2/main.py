@@ -200,11 +200,12 @@ def generate_sd_image(query: str, slug: str = None):
     seed = random.randint(1, 2147483647)
 
     # Đưa chủ thể lên đầu prompt để SD-Turbo tập trung tuyệt đối vào chủ thể
+    detail_desc = query if query and query != clean_concept else ""
     positive = (
-        f"A magnificent centered portrait illustration of {clean_concept}, the {clean_concept} is the prominent central subject, "
-        f"clear recognizable features of a {clean_concept}, full anatomy, crisp detailed depiction, "
-        f"luxurious Art Deco poster background with elegant geometric gold accents, dramatic cinematic lighting, "
-        f"vibrant harmonious colors, sharp focus on the {clean_concept}, masterpiece artwork, no text, no watermark"
+        f"A magnificent centered portrait illustration of {clean_concept}, {detail_desc}, "
+        f"the {clean_concept} is the prominent central subject, clear recognizable features of a {clean_concept}, "
+        f"full anatomy, crisp detailed depiction, luxurious Art Deco poster background with elegant geometric gold accents, "
+        f"dramatic cinematic lighting, vibrant harmonious colors, sharp focus on the {clean_concept}, masterpiece artwork, no text, no watermark"
     )
     negative = (
         f"blurry, distorted, unrecognizable, deformed, abstract mess, missing features of {clean_concept}, "
@@ -686,51 +687,26 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
 
 
 def seed_initial_images():
-    """Mỗi lần bật AI chỉ sinh DUY NHẤT 1 chủ đề mới.
+    """Sinh đủ 7 ảnh kiệt tác theo 7 chủ đề chuẩn của nhóm trưởng.
     Chủ thể rõ nét 100%, không bị trừu tượng.
     """
-    candidates = [
-        ("royal-tiger", "regal roaring tiger face, wild majestic predator, prominent stripes"),
-        ("golden-dragon", "mythical imperial golden dragon, serpentine body, fierce eyes"),
-        ("phoenix", "blazing fire phoenix bird spreading wings, sharp feathers, radiant avian"),
-        ("cyber-car", "classic 1930s luxury roadster automobile, sleek streamlined car body"),
-        ("ancient-palace", "grand stepped palace building, opulent architectural columns, facade"),
-        ("cosmic-galaxy", "spiral galaxy of glowing stars in deep space, cosmic nebula"),
-        ("steam-locomotive", "powerful vintage steam train locomotive, steel wheels, railway engine"),
-        ("golden-sword", "ornate medieval knight sword, gleaming sharp blade, crossguard hilt"),
-        ("red-rose", "blooming red rose flower with distinct ruby petals and green leaves"),
-        ("classic-clock", "round vintage roman numeral clock, golden mechanical hands"),
-        ("bastet-cat", "graceful black egyptian cat, sharp pointed ears, alert eyes"),
-        ("noble-hound", "loyal black hunting hound dog, alert posture, canine snout"),
-        ("skyscraper", "metropolis art deco skyscraper tower, tiered spire"),
+    prompts = [
+        ("black-dog", "majestic loyal black dog sitting upright, alert ears, canine snout, canine portrait"),
+        ("cat", "regal bastet cat, elegant feline face, sharp pointed ears, alert golden eyes"),
+        ("vintage-car", "classic 1930s luxury roadster automobile, streamlined car body, wheels, round headlights"),
+        ("skyscraper", "towering metropolis skyscraper building, tiered chrysler tower spire, architectural facade"),
+        ("red-rose", "blooming red rose flower, rich velvet ruby petals with green stem and leaves"),
+        ("classic-clock", "round vintage roman numeral clock, golden mechanical hands, mantel clock"),
+        ("golden-sword", "ornate medieval knight sword, gleaming sharp blade, winged crossguard hilt"),
     ]
-
-    target = None
-    if db and WORKER_ID:
-        with db.cursor() as cur:
-            for slug, q in candidates:
-                cur.execute("SELECT image_id FROM images WHERE slug=%s AND worker_id=%s LIMIT 1", (slug, WORKER_ID))
-                if not cur.fetchone():
-                    target = (slug, q)
-                    break
-
-    if not target:
-        extras = [
-            ("golden-eagle", "majestic soaring golden eagle bird, sharp beak, widespread wings"),
-            ("panther", "stealthy black panther feline, gleaming golden eyes, sleek predator"),
-            ("vintage-airplane", "1930s twin-engine passenger monoplane aircraft, propellers"),
-            ("lighthouse", "tall coastal lighthouse tower, beam of light, ocean waves"),
-            ("samurai-helmet", "ornate japanese samurai kabuto helmet, golden crest"),
-        ]
-        target = random.choice(extras)
-
-    slug, q = target
-    print(f"[*] Khởi động AI: Sinh 1 kiệt tác cho chủ đề '{slug}' (Rõ nét chủ thể 100%)...")
-    try:
-        img_id = save_and_store_image(slug, q)
-        print(f"  [✓ Hoàn tất] Đã lưu kiệt tác '{slug}' -> ID: {img_id}")
-    except Exception as e:
-        print(f"  [✗ Lỗi] Không thể sinh '{slug}': {e}")
+    print(f"[*] Khởi động AI: Bắt đầu sinh 7 kiệt tác Art Deco (Rõ nét chủ thể 100%)...")
+    for i, (slug, q) in enumerate(prompts, 1):
+        print(f"[{i}/7] Đang sinh tác phẩm: '{slug}'...")
+        try:
+            img_id = save_and_store_image(slug, q)
+            print(f"  [✓ Xong {i}/7] Hoàn tất '{slug}' -> ID: {img_id}")
+        except Exception as e:
+            print(f"  [✗ Lỗi {i}/7] Không thể sinh '{slug}': {e}")
 
 
 def process(entry_id: str, data: dict):
