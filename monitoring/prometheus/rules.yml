@@ -1,0 +1,19 @@
+groups:
+  - name: bt03-alerts
+    rules:
+      - alert: GatewayDown
+        expr: up{job="gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API Gateway is down"
+          description: "Gateway tại 100.70.241.87:8000 không phản hồi"
+
+      - alert: ImageServiceDown
+        expr: up{job="image-service"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Image Service is down"
