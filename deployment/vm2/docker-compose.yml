@@ -16,11 +16,11 @@ services:
       - NODE_ENV=production
       - HOST_IP=${HOST_IP:-192.168.100.12}
       - BASE_URL=${BASE_URL:-http://192.168.100.12:8002}
-      # Redis Hợp đồng nhóm B4 (Core node VM4 - Tailscale: 100.70.241.87:6379)
-      - REDIS_HOST=${REDIS_HOST:-100.70.241.87}
+      # Redis Hợp đồng nhóm B4 (Core node VM4 - Tailscale: 100.111.232.74:6379)
+      - REDIS_HOST=${REDIS_HOST:-100.111.232.74}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-B4Deco_Redis_2026!}
-      - REDIS_URL=${REDIS_URL:-redis://:B4Deco_Redis_2026!@100.70.241.87:6379/0}
+      - REDIS_URL=${REDIS_URL:-redis://:B4Deco_Redis_2026!@100.111.232.74:6379/0}
     volumes:
       - ../../image-service/storage:/app/storage
       - ../../image-service/data:/app/data

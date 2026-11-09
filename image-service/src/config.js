@@ -25,8 +25,8 @@ if (fs.existsSync(envPath)) {
 const HOST_IP = process.env.HOST_IP || '192.168.100.12';
 const PORT = parseInt(process.env.PORT) || 8002;
 
-// Redis cấu hình chuẩn theo Hợp đồng nhóm B4 (Core node VM4 - 100.70.241.87:6379)
-const REDIS_HOST = process.env.REDIS_HOST || '100.70.241.87';
+// Redis cấu hình chuẩn theo Hợp đồng nhóm B4 (Core node VM4 - 100.111.232.74:6379)
+const REDIS_HOST = process.env.REDIS_HOST || '100.111.232.74';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT) || 6379;
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || 'B4Deco_Redis_2026!';
 const REDIS_URL = process.env.REDIS_URL || `redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0`;
