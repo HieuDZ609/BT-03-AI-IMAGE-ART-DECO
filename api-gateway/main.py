@@ -37,8 +37,8 @@ def search(q: str = Query(...), limit: int = 20):
         return json.loads(cached)
     with psycopg.connect(DATABASE_URL) as c:
         rows = c.execute(
-            "SELECT image_id, image_name, slug, style_id, storage_key, sha256, width, height, format, file_size, created_at FROM images WHERE slug=%s OR slug %% %s ORDER BY created_at DESC LIMIT %s",
-            (slug, slug, limit)).fetchall()
+            "SELECT image_id, image_name, slug, style_id, storage_key, sha256, width, height, format, file_size, created_at FROM images WHERE slug=%s ORDER BY created_at DESC LIMIT %s",
+            (slug, limit)).fetchall()
         keys = ['image_id','image_name','slug','style_id','storage_key','sha256','width','height','format','file_size','created_at']
         images = [dict(zip(keys, row)) for row in rows]
         if images:
