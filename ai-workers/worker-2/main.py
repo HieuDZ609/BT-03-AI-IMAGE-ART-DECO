@@ -309,7 +309,9 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
                 """INSERT INTO images (image_id, image_name, slug, prompt, style_id, worker_id,
                    storage_key, sha256, width, height, format, file_size)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (sha256) DO NOTHING""",
+                   ON CONFLICT (sha256) DO UPDATE SET
+                       storage_key=EXCLUDED.storage_key,
+                       image_name=EXCLUDED.image_name""",
                 (image_id, f"{slug} {AI_CODE}.png", slug, query, "deco-v1", WORKER_ID,
                  storage_key, sha, w, h, fmt, len(img_bytes)),
             )
