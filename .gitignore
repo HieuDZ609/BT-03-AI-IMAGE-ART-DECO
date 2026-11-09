@@ -48,3 +48,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ---- Storage Images (local data) ----
+**/storage/images/*
+!**/storage/images/.gitkeep
+**/data/*.sqlite
+**/data/*.sqlite-journal

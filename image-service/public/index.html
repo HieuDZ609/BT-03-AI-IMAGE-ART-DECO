@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B4.2 – Image Storage & Local AI 2.1 (Art Deco) | Nguyễn Thành Đô</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-badge">B4.2</div>
+        <div class="brand-info">
+          <h1>Kho Ảnh & Cơ Sở Dữ Liệu &bull; Phong cách ART DECO</h1>
+          <p>Thành viên 2: <strong>Nguyễn Thành Đô (24IT002)</strong> &bull; AI Local Worker: <strong>Mã 2.1</strong> &bull; VM2: <code>192.168.100.12</code></p>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-indicator online">
+          <span class="dot"></span>
+          <span>Hệ Thống Trực Tuyến</span>
+        </div>
+        <div class="badge-tag">OpenAPI 3 &bull; Prefix /api/v1 &bull; Port 8002</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    <!-- Top Statistics Cards -->
+    <section class="stats-grid">
+      <div class="stat-card glow-blue">
+        <div class="stat-icon">🖼️</div>
+        <div class="stat-meta">
+          <span class="stat-label">Tổng Số Ảnh Trong Kho</span>
+          <span class="stat-value" id="stat-total-images">0</span>
+        </div>
+      </div>
+      <div class="stat-card glow-amber">
+        <div class="stat-icon">🎨</div>
+        <div class="stat-meta">
+          <span class="stat-label">Ảnh Art Deco (AI 2.1 Local)</span>
+          <span class="stat-value" id="stat-ai21-images">0</span>
+        </div>
+      </div>
+      <div class="stat-card glow-purple">
+        <div class="stat-icon">👥</div>
+        <div class="stat-meta">
+          <span class="stat-label">Số Máy Tham Gia Hệ Thống</span>
+          <span class="stat-value" id="stat-active-ais">5 VM</span>
+        </div>
+      </div>
+      <div class="stat-card glow-emerald">
+        <div class="stat-icon">🛡️</div>
+        <div class="stat-meta">
+          <span class="stat-label">Chống Trùng Lặp 2 Lớp</span>
+          <span class="stat-value text-emerald">(slug, ai) + SHA256</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI 2.1 Local Control & On-Demand Generator -->
+    <section class="control-panel card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="icon">⚡</span>
+          <h2>Tiến Trình AI Local 2.1 &bull; Phong cách ART DECO (Gold #C9A227 &bull; Cream #F4EAD5)</h2>
+        </div>
+        <div class="ai-toggle-wrapper">
+          <span class="ai-status-text" id="ai-status-text">Đang chạy ngầm (Chu kỳ 15s)</span>
+          <button id="btn-toggle-ai" class="btn btn-warning">⏸️ Tạm Dừng AI</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="ondemand-form">
+          <div class="form-desc">
+            <strong>Kịch bản Search &rarr; Miss &rarr; Sinh ảnh trong phiên:</strong> Khi người dùng tìm kiếm từ khóa chưa có trong kho, AI 2.1 tự động sinh ảnh Art Deco mới và trả về ngay lập tức, đảm bảo <em>không bao giờ trả "không có kết quả"</em>.
+          </div>
+          <div class="input-group">
+            <span class="input-icon">🔍</span>
+            <input type="text" id="input-ondemand-prompt" placeholder="Nhập từ khóa tiếng Anh (ví dụ: black dog, red hat, blue car, green tree, solar system...)" />
+            <button id="btn-generate-ondemand" class="btn btn-primary">⚡ Sinh Ảnh Art Deco Ngay (AI 2.1)</button>
+          </div>
+          <div class="quick-tags">
+            <span class="tag-title">Gợi ý nhanh theo plan:</span>
+            <button class="tag-btn" data-prompt="black dog">black dog</button>
+            <button class="tag-btn" data-prompt="red hat">red hat</button>
+            <button class="tag-btn" data-prompt="blue car">blue car</button>
+            <button class="tag-btn" data-prompt="green tree">green tree</button>
+            <button class="tag-btn" data-prompt="solar system">solar system</button>
+            <button class="tag-btn" data-prompt="golden eagle">golden eagle</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Distribution & Anti-Duplication Row -->
+    <div class="two-col-grid">
+      <!-- Thống kê chi tiết theo từng AI -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">📊</span>
+            <h2>Thống Kê Chi Tiết Số Lượng Ảnh Theo Từng AI (5 VM)</h2>
+          </div>
+          <button id="btn-refresh-stats" class="btn btn-sm btn-outline">🔄 Làm Mới</button>
+        </div>
+        <div class="card-body">
+          <div id="ai-breakdown-container" class="ai-breakdown-list"></div>
+        </div>
+      </section>
+
+      <!-- Phòng thử nghiệm chống trùng lặp ảnh (Anti-Duplication Lab) -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">🛡️</span>
+            <h2>Kiểm Tra Chống Trùng Lặp Ảnh (SHA-256 + Unique Slug)</h2>
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="section-desc">Kéo thả bất kỳ ảnh nào để thử nghiệm: Nếu file có mã SHA-256 đã tồn tại, hệ thống trả về mã lỗi <strong>409 Conflict</strong> và từ chối lưu trùng lặp.</p>
+          <div class="upload-dropzone" id="upload-dropzone">
+            <input type="file" id="upload-file-input" accept="image/*" style="display:none;" />
+            <div class="dropzone-content">
+              <span class="upload-icon">📁</span>
+              <p>Kéo thả ảnh vào đây hoặc <strong class="text-blue">nhấn để chọn file</strong></p>
+              <span class="text-muted">Tự động tính hash SHA-256 và lưu storage_key</span>
+            </div>
+          </div>
+          <div id="upload-result" class="upload-result-box" style="display:none;"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Image Storage Gallery & Search Engine -->
+    <section class="card gallery-section">
+      <div class="card-header flex-wrap">
+        <div class="card-title">
+          <span class="icon">🖼️</span>
+          <h2>Kho Ảnh Art Deco Thực Tế (Phân Trang 50 Ảnh / Trang)</h2>
+        </div>
+        <div class="gallery-controls">
+          <div class="search-box">
+            <input type="text" id="gallery-search-input" placeholder="Tìm kiếm theo tên tiếng Anh..." />
+            <button id="btn-search-gallery" class="btn btn-sm btn-primary">Tìm</button>
+            <button id="btn-reset-gallery" class="btn btn-sm btn-outline">Tất Cả</button>
+          </div>
+          <div class="autogen-checkbox">
+            <label>
+              <input type="checkbox" id="chk-auto-generate" checked />
+              <span>Tự động sinh ảnh trong phiên nếu miss</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Gallery Grid -->
+        <div id="images-grid" class="images-grid">
+          <div class="grid-loading">Đang tải danh sách ảnh Art Deco...</div>
+        </div>
+
+        <!-- Pagination Bar -->
+        <div class="pagination-bar">
+          <div class="pagination-info" id="pagination-info">Trang 1 / 1 (Tổng 0 ảnh)</div>
+          <div class="pagination-actions">
+            <button id="btn-prev-page" class="btn btn-sm btn-outline" disabled>&laquo; Trang Trước</button>
+            <span class="current-page-num" id="current-page-num">1</span>
+            <button id="btn-next-page" class="btn btn-sm btn-outline" disabled>Trang Sau &raquo;</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Reference for Team Members (OpenAPI 3 /api/v1) -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="icon">🔌</span>
+          <h2>Đặc Tả API Chuẩn OpenAPI 3 (Prefix <code>/api/v1</code> &bull; Phục vụ B4.4 Gateway & B4.3 Frontend)</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="api-table-wrapper">
+          <table class="api-table">
+            <thead>
+              <tr>
+                <th>Phương thức</th>
+                <th>Endpoint</th>
+                <th>Mô tả</th>
+                <th>Module gọi</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge-method get">GET</span></td>
+                <td><code>/api/v1/images?page=1&size=50</code></td>
+                <td>Lấy danh sách 50 ảnh mới nhất / trang (sắp xếp giảm dần theo thời gian tạo)</td>
+                <td>B4.3 Frontend</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/images?page=1&size=50">Copy URL</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method get">GET</span></td>
+                <td><code>/api/v1/search?q=black+dog&page=1</code></td>
+                <td>Tìm theo tên; miss &rarr; tự sinh trong phiên hoặc trả về <code>{hit:false, job_id}</code></td>
+                <td>B4.4 Gateway, B4.3 Frontend</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/search?q=black+dog&page=1">Copy URL</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method get">GET</span></td>
+                <td><code>/api/v1/statistics</code></td>
+                <td>Thống kê số lượng ảnh chi tiết theo từng AI Worker (phục vụ footer web)</td>
+                <td>B4.3 Frontend</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/statistics">Copy URL</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method get">GET</span></td>
+                <td><code>/api/v1/workers</code></td>
+                <td>Lấy trạng thái và heartbeat của cả 5 AI Workers trong cụm phân tán</td>
+                <td>B4.4 Gateway, B4.5 DevOps</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/workers">Copy URL</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method post">POST</span></td>
+                <td><code>/api/v1/images</code></td>
+                <td>Thêm ảnh mới vào kho. Tự động kiểm tra chống trùng <code>(slug, ai)</code> và SHA-256</td>
+                <td>B4.1 AI Workers, B4.4 Gateway</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/images">Copy URL</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method post">POST</span></td>
+                <td><code>/api/v1/generate</code></td>
+                <td>Tạo job sinh ảnh Art Deco thủ công <code>{ "query": "..." }</code></td>
+                <td>B4.4 Gateway</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/generate">Copy URL</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method get">GET</span></td>
+                <td><code>/api/v1/jobs/{id}</code></td>
+                <td>Kiểm tra trạng thái job sinh ảnh (polling / SSE fallback)</td>
+                <td>B4.4 Gateway, B4.3 Frontend</td>
+                <td><button class="btn btn-xs btn-outline copy-btn" data-url="/api/v1/jobs/test-id">Copy URL</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal View Image Detail -->
+  <div id="image-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title">Chi Tiết Ảnh Art Deco</h3>
+        <button id="btn-close-modal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p>&copy; 2026 Bài Thực Hành 3 &bull; Nhóm B4 &bull; <strong>Thành viên 2: Nguyễn Thành Đô (24IT002)</strong> &bull; Kiến Trúc Microservices trên VMware Ubuntu Server</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
