@@ -29,8 +29,25 @@ CONSUMER = AI_CODE
 print(f"Connecting to Redis at {REDIS_URL.split('@')[-1]}...")
 r = redis.from_url(REDIS_URL, decode_responses=True, socket_timeout=15, socket_connect_timeout=10)
 
-print(f"Connecting to PostgreSQL at {DATABASE_URL.split('@')[-1]}...")
-db = connect(DATABASE_URL, autocommit=True)
+def get_db_connection():
+    urls_to_try = [
+        DATABASE_URL,
+        DATABASE_URL + ("&" if "?" in DATABASE_URL else "?") + "sslmode=disable",
+        DATABASE_URL + ("&" if "?" in DATABASE_URL else "?") + "sslmode=prefer",
+    ]
+    last_err = None
+    for url in urls_to_try:
+        try:
+            print(f"Attempting PostgreSQL connection: {url.split('@')[-1]}...")
+            conn = connect(url, autocommit=True, connect_timeout=5)
+            print("PostgreSQL connected successfully!")
+            return conn
+        except Exception as e:
+            last_err = e
+            print("Connect attempt failed:", e)
+    raise last_err
+
+db = get_db_connection()
 
 # resolve worker_id from ai_code
 with db.cursor() as cur:
