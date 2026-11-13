@@ -23,13 +23,18 @@ AI_TITLE_PLATE = os.getenv('AI_TITLE_PLATE', '1') == '1'
 FONT = os.getenv('AI_FONT', '/opt/bt03/ai/fonts/DejaVuSerif-Bold.ttf')
 
 POSITIVE = (
-    "{concept}, centered, clearly visible, simple clean background, "
-    "art deco poster, gold and black, flat illustration, clean shapes, high contrast"
+    "Premium professional illustration of {concept}, subject immediately recognizable, "
+    "natural proportions, rich details and textures, vibrant harmonious colors, "
+    "beautiful Art Deco poster design, elegant geometric ornaments, subtle retro pop art accents, "
+    "refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
+    "polished commercial illustration, clean complementary background, no text, no watermark"
 )
 NEGATIVE = (
-    "blurry, low quality, distorted, messy, complex background, extra objects, "
-    "multiple subjects, text, letters, watermark, signature, bad proportions, "
-    "noisy details, oversaturated"
+    "abstract subject, unrecognizable object, wrong object, incorrect shape, deformed structure, "
+    "unrealistic proportions, incomplete object, cropped subject, multiple main subjects, "
+    "duplicate objects, overlapping objects, busy background, excessive ornaments, "
+    "excessive geometric patterns, excessive decorations, blurry, pixelated, low resolution, noisy, "
+    "muddy colors, oversaturated, washed out, text, typography, letters, watermark, signature"
 )
 
 # Bảng màu Art Deco cố định — dùng chung với style.yaml
