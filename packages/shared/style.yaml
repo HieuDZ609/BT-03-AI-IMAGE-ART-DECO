@@ -32,7 +32,7 @@ generation:
   width: 256
   height: 256
   render_size: 256      # render và giao cùng 256×256
-  steps: 6
+  steps: 4
   guidance_scale: 1.0
   sampler: euler
   seed: random
