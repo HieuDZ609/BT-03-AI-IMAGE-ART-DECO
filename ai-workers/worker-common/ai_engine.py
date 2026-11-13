@@ -14,7 +14,7 @@ SD_BIN = os.getenv('SD_CPP_BIN', '/opt/bt03/ai/bin/sd-cli')
 SD_MODEL = os.getenv('SD_MODEL', '/opt/bt03/ai/models/sd-turbo-q8_0.gguf')
 AI_SIZE = int(os.getenv('AI_SIZE', '256'))          # độ phân giải render (256×256)
 AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # kích thước ảnh giao cho kho
-AI_STEPS = int(os.getenv('AI_STEPS', '4'))          # SD-Turbo: 4 bước, q8 ổn định
+AI_STEPS = int(os.getenv('AI_STEPS', '6'))          # 6 bước: cân bằng nhận diện & thời gian
 AI_CFG = os.getenv('AI_CFG', '1.0')                 # SD-Turbo: CFG thấp
 AI_THREADS = os.getenv('AI_THREADS', '8')
 AI_TIMEOUT = int(os.getenv('AI_TIMEOUT', '180'))
@@ -23,11 +23,8 @@ AI_TITLE_PLATE = os.getenv('AI_TITLE_PLATE', '1') == '1'
 FONT = os.getenv('AI_FONT', '/opt/bt03/ai/fonts/DejaVuSerif-Bold.ttf')
 
 POSITIVE = (
-    "Premium professional illustration of {concept}, subject immediately recognizable, "
-    "natural proportions, rich details and textures, vibrant harmonious colors, "
-    "beautiful Art Deco poster design, elegant geometric ornaments, subtle retro pop art accents, "
-    "refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
-    "polished commercial illustration, clean complementary background, no text, no watermark"
+    "{concept}, centered, clearly visible, simple clean background, "
+    "art deco poster, gold and black, flat illustration, clean shapes, high contrast"
 )
 NEGATIVE = (
     "blurry, low quality, distorted, messy, complex background, extra objects, "
