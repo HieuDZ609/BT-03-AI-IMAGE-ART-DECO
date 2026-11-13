@@ -20,4 +20,3 @@ find "$BACKUP_DIR" -name 'bt03-*' -mtime +"$RETAIN_DAYS" -delete
 
 echo "Backup done: $BACKUP_DIR"
 ls -lh "$BACKUP_DIR" | tail -4
-"
