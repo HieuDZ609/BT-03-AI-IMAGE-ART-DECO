@@ -98,7 +98,7 @@ def generate_image(query: str) -> tuple[bytes, str, int, int]:
             SD_BIN, '-m', SD_MODEL,
             '-W', str(AI_SIZE), '-H', str(AI_SIZE),
             '--cfg-scale', AI_CFG, '--steps', str(AI_STEPS),
-            '--sampling-method', 'euler',
+            '--sampling-method', 'euler', '--diffusion-fa',
             '-t', AI_THREADS, '-s', '-1', '-o', str(out),
             '-p', prompt, '-n', NEGATIVE,
         ]
