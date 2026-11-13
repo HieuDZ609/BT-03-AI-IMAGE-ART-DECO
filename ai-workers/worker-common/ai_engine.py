@@ -23,9 +23,11 @@ AI_TITLE_PLATE = os.getenv('AI_TITLE_PLATE', '1') == '1'
 FONT = os.getenv('AI_FONT', '/opt/bt03/ai/fonts/DejaVuSerif-Bold.ttf')
 
 POSITIVE = (
-    "illustration of {concept}, {concept} clearly visible, centered, "
-    "simple background, black and gold art deco accents, flat vector, "
-    "clean shapes, high contrast"
+    "Premium professional illustration of {concept}, subject immediately recognizable, "
+    "natural proportions, rich details and textures, vibrant harmonious colors, "
+    "beautiful Art Deco poster design, elegant geometric ornaments, subtle retro pop art accents, "
+    "refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
+    "polished commercial illustration, clean complementary background, no text, no watermark"
 )
 NEGATIVE = (
     "blurry, low quality, distorted, messy, complex background, extra objects, "
