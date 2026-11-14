@@ -4,7 +4,7 @@ import psycopg
 from PIL import Image
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, Response
-
+from fastapi.staticfiles import StaticFiles
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://bt03:B4Deco_Pg_2026!@127.0.0.1:5432/bt03')
 STORAGE_DIR = Path(os.getenv('STORAGE_DIR', '/var/lib/bt03/images'))
 THUMB_DIR = Path(os.getenv('THUMB_DIR', '/var/lib/bt03/thumbs'))
@@ -12,6 +12,10 @@ STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title='image-service')
+app.mount("/outputs", StaticFiles(directory="/tmp/bt03-images"), name="outputs")
+app.mount("/outputs", StaticFiles(directory="/tmp/bt03-images"), name="outputs")
+app.mount("/storage", StaticFiles(directory="/tmp/bt03-images"), name="storage")
+app.mount("/images", StaticFiles(directory="/tmp/bt03-images"), name="images")
 CACHE_OK = {'Cache-Control': 'public, max-age=31536000, immutable'}
 
 

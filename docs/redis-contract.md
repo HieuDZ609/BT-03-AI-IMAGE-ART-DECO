@@ -9,7 +9,7 @@
 |---|---|
 | Dịch vụ | Redis 7 (image `redis:7-alpine`) |
 | Máy chủ | **VM4 — core node** (nhóm trưởng vận hành) |
-| Địa chỉ | **`100.70.241.87`** (IP Tailscale của VM4) |
+| Địa chỉ | **`100.111.232.74`** (IP Tailscale của VM4) |
 | Cổng | `6379` |
 | Mật khẩu | biến môi trường `REDIS_PASSWORD` (nhóm trưởng cấp, **không commit**) |
 | Database index | `0` |
@@ -22,18 +22,18 @@ Chuỗi kết nối:
 REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
 
 # Worker trên VM1–VM3, VM5 trỏ về VM4 qua Tailscale
-REDIS_URL=redis://:${REDIS_PASSWORD}@100.70.241.87:6379/0
+REDIS_URL=redis://:${REDIS_PASSWORD}@100.111.232.74:6379/0
 ```
 
 ## 1.1. Mạng Tailscale
 
 Toàn bộ 5 máy ảo và máy host nằm trong cùng một tailnet, nên **không cần quan tâm dải IP của VMware
-NAT**. Mỗi máy cài Tailscale và dùng IP `100.x.y.z` cố định của mình; VM4 là `100.70.241.87`.
+NAT**. Mỗi máy cài Tailscale và dùng IP `100.x.y.z` cố định của mình; VM4 là `100.111.232.74`.
 
 Cấu hình Redis trên VM4 (`redis.conf` hoặc `command:` trong compose):
 
 ```
-bind 127.0.0.1 100.70.241.87
+bind 127.0.0.1 100.111.232.74
 protected-mode yes
 requirepass ${REDIS_PASSWORD}
 appendonly yes
@@ -42,7 +42,7 @@ appendonly yes
 Kiểm tra từ máy khác trong tailnet:
 
 ```bash
-redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" ping     # → PONG
+redis-cli -h 100.111.232.74 -p 6379 -a "$REDIS_PASSWORD" ping     # → PONG
 ```
 
 
@@ -140,12 +140,12 @@ Quy tắc:
 
 ```bash
 # Từ VM1 — kiểm tra kết nối
-redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" ping    # → PONG
+redis-cli -h 100.111.232.74 -p 6379 -a "$REDIS_PASSWORD" ping    # → PONG
 
 # Xem hàng đợi và consumer
-redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" xlen jobs:generate
-redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" xinfo groups jobs:generate
-redis-cli -h 100.70.241.87 -p 6379 -a "$REDIS_PASSWORD" keys 'worker:heartbeat:*'
+redis-cli -h 100.111.232.74 -p 6379 -a "$REDIS_PASSWORD" xlen jobs:generate
+redis-cli -h 100.111.232.74 -p 6379 -a "$REDIS_PASSWORD" xinfo groups jobs:generate
+redis-cli -h 100.111.232.74 -p 6379 -a "$REDIS_PASSWORD" keys 'worker:heartbeat:*'
 ```
 
 ## 7. Độ bền hàng đợi (đã bật trên VM4)

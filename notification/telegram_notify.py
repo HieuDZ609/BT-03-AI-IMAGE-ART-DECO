@@ -13,6 +13,39 @@ app = Flask(__name__)
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
+
+def system_stats() -> str:
+    """Đọc CPU/RAM từ /proc (chạy trên host)."""
+    try:
+        with open('/proc/stat') as f:
+            line = f.readline().split()
+        idle0 = int(line[4]); total0 = sum(int(x) for x in line[1:])
+        import time
+        time.sleep(0.5)
+        with open('/proc/stat') as f:
+            line = f.readline().split()
+        idle1 = int(line[4]); total1 = sum(int(x) for x in line[1:])
+        dt = total1 - total0
+        di = idle1 - idle0
+        cpu = 0 if dt == 0 else (1 - di / dt) * 100
+    except Exception:
+        cpu = -1
+    try:
+        mem = {}
+        with open('/proc/meminfo') as f:
+            for ln in f:
+                k, v = ln.split(':', 1)
+                mem[k.strip()] = int(v.strip().split()[0])
+        total = mem.get('MemTotal', 0) / 1024
+        avail = mem.get('MemAvailable', mem.get('MemFree', 0)) / 1024
+        used = total - avail
+        ram = (used / total * 100) if total else 0
+        ram_str = f"{used:.0f}/{total:.0f} MB ({ram:.0f}%)"
+    except Exception:
+        ram_str = "n/a"
+    cpu_str = f"{cpu:.0f}%" if cpu >= 0 else "n/a"
+    return f"CPU: {cpu_str} | RAM: {ram_str}"
+
 def send_telegram(text: str) -> bool:
     if not TOKEN or not CHAT_ID:
         print("[WARN] Chưa cấu hình TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHAT_ID")
@@ -57,7 +90,7 @@ def alert():
             f"{summary}\n"
             f"<i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"
         )
-        send_telegram(text)
+        send_telegram(text + "\n" + system_stats())
     
     return jsonify({"ok": True, "processed": len(alerts)})
 
@@ -65,9 +98,58 @@ def alert():
 def test():
     ok = send_telegram(
         f"<b>[BT-03]</b> Notification service online\n"
+        f"{system_stats()}\n"
         f"Worker 5.1 + Monitoring — {datetime.now().strftime('%H:%M:%S')}"
     )
     return jsonify({"sent": ok})
+
+
+@app.route("/status", methods=["GET"])
+def status():
+    ok = send_telegram(
+        f"<b>[BT-03 STATUS]</b>\n" + system_stats() +
+        f"\n<i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"
+    )
+    return jsonify({"sent": ok, "stats": system_stats()})
+
+
+import threading
+
+_last_update_id = 0
+
+def _poll_telegram():
+    global _last_update_id
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+            resp = requests.get(url, params={"offset": _last_update_id + 1, "timeout": 10}, timeout=15)
+            data = resp.json()
+            for upd in data.get("result", []):
+                _last_update_id = max(_last_update_id, upd.get("update_id", 0))
+                msg = upd.get("message", {})
+                text = (msg.get("text") or "").strip().lower()
+                chat = msg.get("chat", {})
+                cid = chat.get("id")
+                if not cid:
+                    continue
+                if text in ("/status", "status", "/cpu", "/ram"):
+                    reply = "<b>[BT-03 STATUS]</b>\n" + system_stats() + f"\n<i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                                 json={"chat_id": cid, "text": reply, "parse_mode": "HTML"}, timeout=10)
+                elif text in ("/help", "help", "/start"):
+                    reply = ("<b>[BT-03]</b> Lệnh hỗ trợ:\n"
+                             "/status - xem CPU/RAM hiện tại\n"
+                             "/test - gửi tin test")
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                                 json={"chat_id": cid, "text": reply, "parse_mode": "HTML"}, timeout=10)
+        except Exception as e:
+            print(f"[POLL ERROR] {e}")
+        import time
+        time.sleep(2)
+
+if TOKEN and CHAT_ID:
+    threading.Thread(target=_poll_telegram, daemon=True).start()
+    print("[POLL] Telegram command polling started")
 
 if __name__ == "__main__":
     print("BT-03 Notify Service starting on :8089")

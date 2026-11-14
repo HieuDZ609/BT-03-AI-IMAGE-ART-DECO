@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Đang Sinh Ảnh: “<%= searchKeyword %>” · Art Deco</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body style="display: grid; place-items: center; min-height: 100vh;">
+  <main class="generating-card">
+    <div class="wordmark-mark" style="margin: 0 auto 16px;">B4</div>
+    <span class="eyebrow">Hệ thống AI tự động sinh ảnh</span>
+    <h1 style="color: var(--gold-bright); font-family: 'Georgia', serif; margin: 12px 0;">Đang khởi tạo bức ảnh mới</h1>
+    
+    <p style="color: var(--text-muted); font-size: 14px;">
+      Từ khoá <strong>“<%= searchKeyword %>”</strong> chưa có trong kho. Tiến trình AI đang tạo ảnh theo chuẩn phong cách Art Deco...
+    </p>
+
+    <div class="loader-spinner"></div>
+    <div id="status-message" style="color: var(--gold-primary); font-weight: 600; margin-top: 16px;">
+      Đang xếp hàng (Queued)...
+    </div>
+
+    <div style="margin-top: 30px;">
+      <a href="/" style="font-size: 12px; color: var(--text-muted); text-decoration: underline;">Quay lại trang chủ</a>
+    </div>
+  </main>
+
+  <script>
+    const jobId = "<%= jobId %>";
+    const keyword = "<%= searchKeyword %>";
+    const statusEl = document.getElementById('status-message');
+
+    let pollInterval = null;
+
+    function handleJobStatus(data) {
+      if (data.status === 'RUNNING') {
+        statusEl.textContent = "AI đang xử lý và hậu kỳ Art Deco...";
+      } else if (data.status === 'DONE') {
+        statusEl.textContent = "Hoàn tất! Đang chuyển hướng về kết quả...";
+        setTimeout(() => {
+          window.location.href = `/?q=${encodeURIComponent(keyword)}`;
+        }, 1000);
+      } else if (data.status === 'FAILED' || data.status === 'DEAD') {
+        statusEl.textContent = "Lỗi sinh ảnh: " + (data.error || "Không đủ worker đáp ứng.");
+        statusEl.style.color = "var(--status-offline)";
+      }
+    }
+
+    // 1. Thử dùng SSE trước
+    if (!!window.EventSource && jobId) {
+      const eventSource = new EventSource(`/api/v1/jobs/${jobId}/events`);
+
+      eventSource.addEventListener('status', (e) => {
+        const data = JSON.parse(e.data);
+        handleJobStatus(data);
+        if (data.status === 'DONE' || data.status === 'FAILED') {
+          eventSource.close();
+        }
+      });
+
+      eventSource.onerror = () => {
+        // Dự phòng: Chuyển sang Polling 2s nếu SSE gặp sự cố
+        eventSource.close();
+        startPolling();
+      };
+    } else {
+      startPolling();
+    }
+
+    // 2. Polling Fallback 2 giây
+    function startPolling() {
+      if (pollInterval) return;
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/v1/jobs/${jobId}`);
+          if (res.ok) {
+            const data = await res.json();
+            handleJobStatus(data);
+            if (data.status === 'DONE' || data.status === 'FAILED') {
+              clearInterval(pollInterval);
+            }
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

@@ -10,5 +10,5 @@ route:
 receivers:
   - name: 'telegram-receiver'
     webhook_configs:
-      - url: 'http://notify:8089/alert'
+      - url: 'http://192.168.100.107:8089/alert'
         send_resolved: true

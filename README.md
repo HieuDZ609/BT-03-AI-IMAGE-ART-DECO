@@ -128,15 +128,15 @@ git push -u origin B4.1-ai-worker
 
 | Dịch vụ | Địa chỉ | Ghi chú |
 |---|---|---|
-| Redis 7 | `100.70.241.87:6379` | password trong `REDIS_PASSWORD`, db 0 |
-| PostgreSQL 18 | `100.70.241.87:5432` | db `bt03`, user `bt03`, ext `pg_trgm` |
-| MinIO (dự kiến) | `100.70.241.87:9000` | console `:9001` |
+| Redis 7 | `100.111.232.74:6379` | password trong `REDIS_PASSWORD`, db 0 |
+| PostgreSQL 18 | `100.111.232.74:5432` | db `bt03`, user `bt03`, ext `pg_trgm` |
+| MinIO (dự kiến) | `100.111.232.74:9000` | console `:9001` |
 
 Chuỗi kết nối mẫu (đặt trong `.env`, không commit):
 
 ```env
-REDIS_URL=redis://:B4Deco_Redis_2026!@100.70.241.87:6379/0
-DATABASE_URL=postgresql://bt03:B4Deco_Pg_2026!@100.70.241.87:5432/bt03
+REDIS_URL=redis://:B4Deco_Redis_2026!@100.111.232.74:6379/0
+DATABASE_URL=postgresql://bt03:B4Deco_Pg_2026!@100.111.232.74:5432/bt03
 ```
 
 ## 8. Giấy phép
