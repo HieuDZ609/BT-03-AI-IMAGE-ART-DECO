@@ -14,7 +14,7 @@ SD_BIN = os.getenv('SD_CPP_BIN', '/opt/bt03/ai/bin/sd-cli')
 SD_MODEL = os.getenv('SD_MODEL', '/opt/bt03/ai/models/sd-turbo-q8_0.gguf')
 AI_SIZE = int(os.getenv('AI_SIZE', '256'))          # 256×256: ổn định ~16-24s
 AI_DELIVER = int(os.getenv('AI_DELIVER', '256'))    # 256×256
-AI_STEPS = int(os.getenv('AI_STEPS', '3'))          # 3 bước: ~12-14s, nhanh hơn
+AI_STEPS = int(os.getenv("AI_STEPS", "4"))          # 4 buoc: ~16-24s, on dinh
 AI_CFG = os.getenv('AI_CFG', '1.0')                 # SD-Turbo: CFG thấp
 AI_THREADS = os.getenv('AI_THREADS', '8')
 AI_TIMEOUT = int(os.getenv('AI_TIMEOUT', '180'))
@@ -98,7 +98,7 @@ def generate_image(query: str) -> tuple[bytes, str, int, int]:
             SD_BIN, '-m', SD_MODEL,
             '-W', str(AI_SIZE), '-H', str(AI_SIZE),
             '--cfg-scale', AI_CFG, '--steps', str(AI_STEPS),
-            '--sampling-method', 'euler', '--diffusion-fa',
+            '--sampling-method', 'euler',
             '-t', AI_THREADS, '-s', '-1', '-o', str(out),
             '-p', prompt, '-n', NEGATIVE,
         ]
