@@ -22,18 +22,26 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 from psycopg import connect
 
 AI_CODE = os.getenv("AI_CODE", "2.1")
-MODEL_NAME = "SD-Turbo (Art Deco)"
-REDIS_URL = os.getenv("REDIS_URL", "redis://:B4Deco_Redis_2026!@100.111.232.74:6379/0")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bt03:B4Deco_Pg_2026!@100.111.232.74:5432/bt03")
+MODEL_NAME = os.getenv("AI_MODEL_NAME", "SD-Turbo (Art Deco)")
+REDIS_URL = os.getenv("REDIS_URL", "redis://:B4Deco_Redis_2026!@100.70.241.87:6379/0")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bt03:B4Deco_Pg_2026!@100.70.241.87:5432/bt03")
 LOCAL_DIR = os.getenv("LOCAL_STORAGE_DIR", "/tmp/bt03-images")
 STREAM = "jobs:generate"
 EVENTS = "job:events"
 GROUP = "workers"
 CONSUMER = AI_CODE
 
-# SSH sync sang VM4 (giống B4.1)
-STORAGE_SSH_TARGET = os.getenv("STORAGE_SSH_TARGET", "root@100.111.232.74")
+# SSH sync sang VM4 (Tailscale: 100.70.241.87)
+STORAGE_SSH_TARGET = os.getenv("STORAGE_SSH_TARGET", "root@100.70.241.87")
 STORAGE_REMOTE_DIR = os.getenv("STORAGE_REMOTE_DIR", "/var/lib/bt03/images")
+
+# Cấu hình SD-Turbo GGUF
+SD_CPP_BIN = os.getenv("SD_CPP_BIN", "/opt/bt03/ai/bin/sd-cli")
+SD_MODEL = os.getenv("SD_MODEL", "/opt/bt03/ai/models/sd-turbo-q8_0.gguf")
+AI_SIZE = int(os.getenv("AI_SIZE", "256"))
+AI_STEPS = os.getenv("AI_STEPS", "4")
+AI_CFG = os.getenv("AI_CFG", "1.0")
+AI_TITLE_PLATE = os.getenv("AI_TITLE_PLATE", "1") == "1"
 
 # Palette strictly adhering to packages/shared/style.yaml
 GOLD = "#C9A227"
@@ -214,10 +222,11 @@ def generate_sd_image(query: str, slug: str = None):
     )
 
     remote_tmp = f"/tmp/sd_{uuid.uuid4().hex[:8]}.png"
+    bin_dir = os.path.dirname(SD_CPP_BIN) or "/opt/bt03/ai/bin"
     sd_cmd = (
-        f"LD_LIBRARY_PATH=/opt/bt03/ai/bin /opt/bt03/ai/bin/sd-cli "
-        f"-m /opt/bt03/ai/models/sd-turbo-q8_0.gguf "
-        f"-W 512 -H 512 --cfg-scale 1.0 --steps 4 --sampling-method euler "
+        f"LD_LIBRARY_PATH={bin_dir} {SD_CPP_BIN} "
+        f"-m {SD_MODEL} "
+        f"-W 512 -H 512 --cfg-scale {AI_CFG} --steps {AI_STEPS} --sampling-method euler "
         f"-t 4 -s {seed} -o {remote_tmp} "
         f"-p \"{positive}\" -n \"{negative}\""
     )
@@ -258,22 +267,19 @@ def generate_sd_image(query: str, slug: str = None):
 
                 # Gắn bảng tên Art Deco ở đáy ảnh + viền vàng hoàng kim
                 w, h = im.size
-                im = add_title_plate(im, clean_concept, band=34)
+                if AI_TITLE_PLATE:
+                    im = add_title_plate(im, clean_concept, band=34)
                 d = ImageDraw.Draw(im)
                 d.rectangle((1, 1, w - 2, h - 2), outline="#C9A227", width=4)
                 d.rectangle((6, 6, w - 7, h - 7), outline="#8A6D17", width=1)
 
-                buf = io.BytesIO()
-                im.save(buf, format="PNG", optimize=True)
-                print(f"  [SD-Turbo ✨] Masterpiece '{clean_concept}' sinh thành công ({w}x{h})!")
-                return buf.getvalue(), "png", w, h
-    except Exception as e:
-        print(f"  [SD-Turbo ⚠️] Exception: {e}")
-        return None
+                if (w, h) != (AI_SIZE, AI_SIZE):
+                    im = im.resize((AI_SIZE, AI_SIZE), Image.Resampling.LANCZOS)
+                    w, h = AI_SIZE, AI_SIZE
 
                 buf = io.BytesIO()
                 im.save(buf, format="PNG", optimize=True)
-                print(f"  [SD-Turbo ✨] Masterpiece sinh thành công ({w}x{h})!")
+                print(f"  [SD-Turbo ✨] Masterpiece '{clean_concept}' sinh thành công ({w}x{h})!")
                 return buf.getvalue(), "png", w, h
     except Exception as e:
         print(f"  [SD-Turbo ⚠️] Exception: {e}")
@@ -686,27 +692,153 @@ def save_and_store_image(slug: str, query: str, job_id: str = None):
     return image_id
 
 
+# ── Kho 65+ chủ đề Art Deco rõ nét 100% (Con hổ ra con hổ, bông hoa ra bông hoa, không trừu tượng) ──
+ART_DECO_TOPIC_POOL = [
+    # 1. Động vật dũng mãnh & biểu tượng quen thuộc
+    ("bengal-tiger", "majestic fierce royal bengal tiger, vibrant orange coat with bold black stripes, alert amber eyes, muscular feline posture"),
+    ("golden-lion", "regal king lion with a magnificent full mane, proud royal posture, majestic feline face"),
+    ("phoenix-bird", "mythical fire phoenix bird, radiant spreading wings, flaming plumage, glowing golden crest"),
+    ("golden-dragon", "legendary imperial golden dragon, serpentine body, ornate horned head, sharp claws, pearl of wisdom"),
+    ("black-dog", "majestic loyal black dog sitting upright, alert ears, canine snout, canine portrait"),
+    ("regal-cat", "regal egyptian cat, elegant feline face, sharp pointed ears, alert golden eyes"),
+    ("soaring-eagle", "mighty soaring golden eagle, spread feathered wings, sharp hooked beak, fierce eyes"),
+    ("majestic-horse", "wild noble stallion horse, flowing mane, muscular equine posture, galloping silhouette"),
+    ("great-horned-owl", "wise great horned owl perched on a branch, large round yellow eyes, detailed plumage"),
+    ("peacock", "magnificent male peacock displaying emerald and sapphire fan tail feathers, regal crest"),
+    ("white-wolf", "noble arctic white wolf, thick fur coat, alert ears, howling silhouette"),
+    ("giant-elephant", "majestic african elephant with grand curved ivory tusks, grand trunk, regal decorative harness"),
+    ("black-panther", "sleek muscular black panther stalking, glowing emerald eyes, elegant predator"),
+    ("stag-deer", "noble forest stag deer with magnificent branched antlers, standing proud in the wild"),
+    ("honey-bee", "golden honey bee, delicate translucent gossamer wings, fuzzy yellow striped body"),
+    ("sea-turtle", "ancient majestic green sea turtle gliding underwater, patterned shell, flippers"),
+    ("blue-whale", "giant gentle blue whale swimming, streamlined marine body, fluke tail"),
+    ("polar-bear", "mighty arctic white polar bear standing proud on ice, thick white fur, dark eyes"),
+    ("dolphin", "graceful marine dolphin leaping out of ocean waves, curved streamlined body"),
+    ("flamingo", "elegant pink flamingo standing gracefully on one leg, curved neck, pink plumage"),
+    ("swallow-bird", "swift spring swallow bird in mid-flight, glossy blue feathers, iconic forked tail"),
+    ("red-fox", "cunning wild red fox, vibrant bushy rust-red tail, sharp pointed snout and alert ears"),
+    ("black-swan", "graceful majestic black swan gliding on water, long arched neck, deep crimson beak"),
+
+    # 2. Hoa & Thực vật quen thuộc
+    ("red-rose", "blooming velvet red rose flower, layered ruby petals, green thorny stem with leaves"),
+    ("sacred-lotus", "sacred pink lotus flower blossom floating, serene symmetrical petals, golden center"),
+    ("sunflower", "bright giant golden sunflower, concentric seed pattern center, radiant yellow petals"),
+    ("purple-orchid", "exotic purple phalaenopsis orchid blossom, elegant curving petals and lip"),
+    ("cherry-blossom", "delicate pink sakura cherry blossom flower branch, five tender petals, stamens"),
+    ("white-lily", "pure white calla lily blossom, elegant trumpet petal flare, golden spadix"),
+    ("dutch-tulip", "vibrant crimson dutch tulip flower, smooth cup-shaped petals, fresh green stem"),
+    ("bonsai-pine", "ancient twisted japanese pine bonsai tree in ornate ceramic pot, lush green needle clusters"),
+    ("ginkgo-leaf", "golden ginkgo biloba fan-shaped autumn leaves, delicate veins, elegant botanical stem"),
+    ("four-leaf-clover", "lucky vibrant green four-leaf clover, heart-shaped emerald leaflets, dew drops"),
+    ("golden-wheat", "sheaf of ripe golden wheat stalks, bundled grain ears, harvest symbol"),
+
+    # 3. Kiến trúc & Kỳ quan thế giới
+    ("skyscraper", "towering metropolis skyscraper building, tiered chrysler tower spire, architectural facade"),
+    ("eiffel-tower", "monumental paris eiffel tower, wrought-iron lattice arch, soaring spire into the sky"),
+    ("ocean-lighthouse", "historic coastal lighthouse tower standing on rocky cliff, rotating beacon lantern light"),
+    ("pyramids-of-giza", "ancient monumental triangular stone pyramids of giza, sharp stepped edges under golden sun"),
+    ("colosseum", "majestic roman colosseum amphitheater, arched tiered arcade colonnade, ancient stone ruin"),
+    ("big-ben", "historic london big ben clock tower, ornate gothic spire, giant illuminated round clock dial"),
+    ("taj-mahal", "magnificent white marble taj mahal dome palace, symmetrical arched facade, reflecting pool"),
+    ("statue-of-liberty", "iconic statue of liberty monument, torch held high, seven-pointed radiate crown, draped robe"),
+    ("oriental-pagoda", "traditional multi-tiered oriental pagoda temple tower, curved eaves, decorative spire"),
+    ("golden-gate-bridge", "grand red suspension golden gate bridge, art deco chevron towers, cables crossing bay"),
+
+    # 4. Phương tiện & Máy móc cổ điển
+    ("vintage-car", "classic 1930s luxury roadster convertible car, chrome grille, round headlights, wire-spoke wheels"),
+    ("steam-locomotive", "mighty 1930s streamlined steam locomotive train engine, rounded art deco bullet cowl, iron cowcatcher"),
+    ("ocean-liner", "grand art deco passenger ocean liner steamship, three red and black funnels, majestic bow cutting waves"),
+    ("biplane-aircraft", "classic 1930s vintage racing biplane airplane, dual wings, spinning brass propeller, cockpit"),
+    ("hot-air-balloon", "grand vintage striped hot air balloon in flight, woven wicker basket, ropes, burner flame"),
+    ("classic-motorcycle", "vintage 1930s board track motorcycle, exposed chrome v-twin engine, swept handlebars"),
+    ("zeppelin-airship", "magnificent 1930s rigid zeppelin dirigible airship soaring through sky, streamlined hull, tail fins"),
+    ("racing-yacht", "sleek vintage racing sailing yacht cutting water, billowing white canvas sails, wooden deck"),
+
+    # 5. Cổ vật nghệ thuật & Biểu tượng
+    ("golden-sword", "ornate medieval knight sword, gleaming sharp steel blade, winged crossguard hilt, jeweled pommel"),
+    ("classic-clock", "round vintage roman numeral clock, golden mechanical gears and hands, ornate mantel casing"),
+    ("grand-harp", "magnificent golden concert pedal harp, vertical musical strings, carved pillar and arch"),
+    ("gramophone", "vintage antique gramophone phonograph, polished brass flared morning-glory horn, wooden box, vinyl disc"),
+    ("antique-telescope", "polished brass nautical telescope on wooden tripod, glass lenses, looking at stars"),
+    ("royal-crown", "regal imperial golden king crown, studded with sparkling rubies, emeralds and sapphires, velvet cap"),
+    ("vintage-anchor", "heavy wrought-iron navy ship anchor, curved flukes, sturdy chain wrapped around stock"),
+    ("classic-compass", "ornate antique brass pocket navigation compass, star compass rose dial, pointing needle"),
+    ("knight-shield", "medieval heraldic knight heater shield, embossed golden lion crest, polished steel rim"),
+    ("golden-chalice", "ornate golden royal chalice goblet, embossed filigree patterns, encrusted gemstones"),
+    ("acoustic-guitar", "vintage wooden acoustic classical guitar, curved body, sound hole rosette, fretboard strings"),
+    ("chess-knight", "carved ivory and obsidian chess knight horse piece, arched neck, detailed mane"),
+    ("treasure-chest", "antique wooden pirate treasure chest with open lid, overflowing with sparkling gold coins and gems"),
+]
+
+
 def seed_initial_images():
-    """Sinh đủ 7 ảnh kiệt tác theo 7 chủ đề chuẩn của nhóm trưởng.
-    Chủ thể rõ nét 100%, không bị trừu tượng.
+    """Sinh đủ 50 ảnh kiệt tác Art Deco cho buổi chấm điểm ngày mai.
+    - Đọc DB xem hiện tại đã có bao nhiêu ảnh của worker này.
+    - Nếu chưa đủ 50 ảnh: Tự động sinh tiếp các chủ đề mới cho đến khi đủ mốc 50 ảnh.
+    - Nếu đã có đủ >= 50 ảnh: Không sinh dồn dập nữa, chuyển sang trạng thái trực tuyến để sinh từ từ theo yêu cầu.
     """
-    prompts = [
-        ("black-dog", "majestic loyal black dog sitting upright, alert ears, canine snout, canine portrait"),
-        ("cat", "regal bastet cat, elegant feline face, sharp pointed ears, alert golden eyes"),
-        ("vintage-car", "classic 1930s luxury roadster automobile, streamlined car body, wheels, round headlights"),
-        ("skyscraper", "towering metropolis skyscraper building, tiered chrysler tower spire, architectural facade"),
-        ("red-rose", "blooming red rose flower, rich velvet ruby petals with green stem and leaves"),
-        ("classic-clock", "round vintage roman numeral clock, golden mechanical hands, mantel clock"),
-        ("golden-sword", "ornate medieval knight sword, gleaming sharp blade, winged crossguard hilt"),
-    ]
-    print(f"[*] Khởi động AI: Bắt đầu sinh 7 kiệt tác Art Deco (Rõ nét chủ thể 100%)...")
-    for i, (slug, q) in enumerate(prompts, 1):
-        print(f"[{i}/7] Đang sinh tác phẩm: '{slug}'...")
+    target_count = int(os.getenv("INITIAL_SEED_TARGET", "50"))
+    existing_slugs = set()
+    if db and WORKER_ID:
+        try:
+            with db.cursor() as cur:
+                cur.execute("SELECT slug FROM images WHERE worker_id=%s", (WORKER_ID,))
+                existing_slugs = {row[0] for row in cur.fetchall()}
+        except Exception as e:
+            print(f"[*] Cảnh báo khi đọc DB: {e}")
+
+    current_count = len(existing_slugs)
+    needed = max(0, target_count - current_count)
+
+    print(f"[*] Khởi động AI Worker {AI_CODE}: Hiện có {current_count}/{target_count} tác phẩm trong DB.")
+
+    if needed == 0:
+        print(f"[*] ✅ Đã có đủ bộ sưu tập {current_count} tác phẩm (>= mục tiêu {target_count}) sẵn sàng cho thầy chấm điểm!")
+        print(f"[*] Worker chuyển sang trạng thái trực tuyến, sẽ sinh từ từ khi có job yêu cầu...")
+        return
+
+    # Lọc các chủ đề chưa có trong DB
+    candidates = [item for item in ART_DECO_TOPIC_POOL if item[0] not in existing_slugs]
+    random.shuffle(candidates)
+
+    selected_items = []
+    if len(candidates) >= needed:
+        selected_items = candidates[:needed]
+    else:
+        selected_items = list(candidates)
+        remaining = needed - len(selected_items)
+        pool_copy = list(ART_DECO_TOPIC_POOL)
+        random.shuffle(pool_copy)
+        for base_slug, q in pool_copy:
+            if remaining <= 0:
+                break
+            cur_slugs = existing_slugs.union({s for s, _ in selected_items})
+            new_slug = None
+            for v in range(2, 50):
+                cand_slug = f"{base_slug}-v{v}"
+                if cand_slug not in cur_slugs:
+                    new_slug = cand_slug
+                    break
+            if not new_slug:
+                new_slug = f"{base_slug}-{uuid.uuid4().hex[:4]}"
+            selected_items.append((new_slug, q))
+            remaining -= 1
+
+    total_to_generate = len(selected_items)
+    print(f"[*] 🚀 Bắt đầu sinh {total_to_generate} tác phẩm mới để hoàn tất bộ sưu tập {target_count} ảnh cho thầy chấm...")
+    print(f"[*] Tiêu chuẩn: Rõ nét chủ thể 100%, khung viền vàng hoàng kim + bảng tên Art Deco ở đáy!")
+
+    for i, (slug, q) in enumerate(selected_items, 1):
+        overall_progress = current_count + i
+        print(f"[{i}/{total_to_generate}] (Tổng tích lũy: {overall_progress}/{target_count}) Đang sinh: '{slug}'...")
         try:
             img_id = save_and_store_image(slug, q)
-            print(f"  [✓ Xong {i}/7] Hoàn tất '{slug}' -> ID: {img_id}")
+            print(f"  [✓ Xong {i}/{total_to_generate}] Hoàn tất '{slug}' -> ID: {img_id}")
         except Exception as e:
-            print(f"  [✗ Lỗi {i}/7] Không thể sinh '{slug}': {e}")
+            print(f"  [✗ Lỗi {i}/{total_to_generate}] Không thể sinh '{slug}': {e}")
+
+    print(f"[*] 🎉 HOÀN TẤT TOÀN BỘ BỘ SƯU TẬP {target_count} KIỆT TÁC ART DECO ĐỂ CHẤM ĐIỂM!")
+    print(f"[*] Chuyển sang chế độ thường trực, sẵn sàng nhận job sinh từ từ...")
 
 
 def process(entry_id: str, data: dict):
