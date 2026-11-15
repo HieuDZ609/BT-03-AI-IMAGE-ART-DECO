@@ -33,15 +33,38 @@ CONSUMER = AI_CODE
 
 # SSH sync sang VM4 (Tailscale: 100.70.241.87)
 STORAGE_SSH_TARGET = os.getenv("STORAGE_SSH_TARGET", "root@100.70.241.87")
+STORAGE_SSH_PASSWORD = os.getenv("STORAGE_SSH_PASSWORD", "070995")
 STORAGE_REMOTE_DIR = os.getenv("STORAGE_REMOTE_DIR", "/var/lib/bt03/images")
 
-# Cấu hình SD-Turbo GGUF
+# Cấu hình SD-Turbo GGUF chuẩn chất lượng cao theo AI Worker 1.1
 SD_CPP_BIN = os.getenv("SD_CPP_BIN", "/opt/bt03/ai/bin/sd-cli")
 SD_MODEL = os.getenv("SD_MODEL", "/opt/bt03/ai/models/sd-turbo-q8_0.gguf")
-AI_SIZE = int(os.getenv("AI_SIZE", "256"))
+AI_SIZE = int(os.getenv("AI_SIZE", "512"))
 AI_STEPS = os.getenv("AI_STEPS", "4")
 AI_CFG = os.getenv("AI_CFG", "1.0")
 AI_TITLE_PLATE = os.getenv("AI_TITLE_PLATE", "1") == "1"
+
+
+def build_ssh_cmd(remote_command: str):
+    """Tạo lệnh SSH có hỗ trợ sshpass để tự động điền mật khẩu 070995."""
+    base_opts = ["-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=15"]
+    if STORAGE_SSH_PASSWORD:
+        return ["sshpass", "-p", STORAGE_SSH_PASSWORD, "ssh"] + base_opts + [STORAGE_SSH_TARGET, remote_command]
+    return ["ssh", "-o", "BatchMode=yes"] + base_opts + [STORAGE_SSH_TARGET, remote_command]
+
+
+def build_scp_cmd(local_file: str, remote_file: str, is_download: bool = False):
+    """Tạo lệnh SCP có hỗ trợ sshpass để kéo/đẩy ảnh sang VM4."""
+    base_opts = ["-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=20"]
+    if is_download:
+        src = f"{STORAGE_SSH_TARGET}:{remote_file}"
+        dst = local_file
+    else:
+        src = local_file
+        dst = f"{STORAGE_SSH_TARGET}:{remote_file}"
+    if STORAGE_SSH_PASSWORD:
+        return ["sshpass", "-p", STORAGE_SSH_PASSWORD, "scp"] + base_opts + [src, dst]
+    return ["scp", "-o", "BatchMode=yes"] + base_opts + [src, dst]
 
 # Palette strictly adhering to packages/shared/style.yaml
 GOLD = "#C9A227"
@@ -203,22 +226,25 @@ def add_title_plate(im: Image.Image, text: str, band: int = 34) -> Image.Image:
 
 
 def generate_sd_image(query: str, slug: str = None):
-    """Sinh ảnh bằng SD-Turbo: chủ thể nổi bật 100%, nét căng, không trừu tượng khó hiểu."""
+    """Sinh ảnh bằng SD-Turbo Q8 GGUF chuẩn chất lượng cao của Worker 1.1:
+    - Kích thước: 512x512, Steps: 4, CFG: 1.0.
+    - Positive & Negative prompt chuẩn 100% của Worker 1.1: Tranh minh họa chuyên nghiệp, sắc nét, giàu chi tiết.
+    - Hậu kỳ Pillow: AutoContrast (0.2), Color (1.15), Contrast (1.07), UnsharpMask (1.2/110/3).
+    """
     clean_concept = (slug or query).replace("-", " ").replace("_", " ").strip()
     seed = random.randint(1, 2147483647)
 
-    # Đưa chủ thể lên đầu prompt để SD-Turbo tập trung tuyệt đối vào chủ thể
-    detail_desc = query if query and query != clean_concept else ""
+    # Positive & Negative prompt chuẩn 100% theo Worker 1.1
     positive = (
-        f"A magnificent centered portrait illustration of {clean_concept}, {detail_desc}, "
-        f"the {clean_concept} is the prominent central subject, clear recognizable features of a {clean_concept}, "
-        f"full anatomy, crisp detailed depiction, luxurious Art Deco poster background with elegant geometric gold accents, "
-        f"dramatic cinematic lighting, vibrant harmonious colors, sharp focus on the {clean_concept}, masterpiece artwork, no text, no watermark"
+        f"Premium professional illustration of {clean_concept}, subject immediately recognizable, "
+        f"natural proportions, rich details and textures, vibrant harmonious colors, "
+        f"beautiful Art Deco poster design, elegant geometric ornaments, subtle retro pop art accents, "
+        f"refined lighting, crisp detailed artwork, sophisticated composition, strong focal point, "
+        f"polished commercial illustration, clean complementary background, no text, no watermark"
     )
     negative = (
-        f"blurry, distorted, unrecognizable, deformed, abstract mess, missing features of {clean_concept}, "
-        f"hidden subject, chaotic patterns covering the subject, mutated, bad anatomy, low quality, "
-        f"extra limbs, messy background, cropped, watermark, text"
+        "blurry, low quality, distorted, messy, complex background, extra objects, multiple subjects, "
+        "text, letters, watermark, signature, bad proportions, noisy details, oversaturated"
     )
 
     remote_tmp = f"/tmp/sd_{uuid.uuid4().hex[:8]}.png"
@@ -226,18 +252,15 @@ def generate_sd_image(query: str, slug: str = None):
     sd_cmd = (
         f"LD_LIBRARY_PATH={bin_dir} {SD_CPP_BIN} "
         f"-m {SD_MODEL} "
-        f"-W 512 -H 512 --cfg-scale {AI_CFG} --steps {AI_STEPS} --sampling-method euler "
+        f"-W {AI_SIZE} -H {AI_SIZE} --cfg-scale {AI_CFG} --steps {AI_STEPS} --sampling-method euler "
         f"-t 4 -s {seed} -o {remote_tmp} "
         f"-p \"{positive}\" -n \"{negative}\""
     )
 
-    ssh_cmd = [
-        "ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
-        STORAGE_SSH_TARGET, sd_cmd
-    ]
+    ssh_cmd = build_ssh_cmd(sd_cmd)
 
     try:
-        print(f"  [SD-Turbo 🎨] Rendering rõ nét chủ thể: '{clean_concept}'...")
+        print(f"  [SD-Turbo 🎨] Rendering tác phẩm nghệ thuật cao cấp: '{clean_concept}' ({AI_SIZE}x{AI_SIZE})...")
         proc = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=180)
         if proc.returncode != 0:
             err = proc.stderr[-200:] if proc.stderr else proc.stdout[-200:]
@@ -247,19 +270,13 @@ def generate_sd_image(query: str, slug: str = None):
         # Kéo ảnh kết quả về để hậu kỳ Pillow
         with tempfile.TemporaryDirectory(prefix="bt03-sd-") as td:
             local_tmp = os.path.join(td, "out.png")
-            scp_cmd = [
-                "scp", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
-                f"{STORAGE_SSH_TARGET}:{remote_tmp}", local_tmp
-            ]
-            subprocess.run(scp_cmd, check=True, timeout=20, capture_output=True)
-            subprocess.run(
-                ["ssh", "-o", "BatchMode=yes", STORAGE_SSH_TARGET, f"rm -f {remote_tmp}"],
-                check=False, timeout=10
-            )
+            scp_cmd = build_scp_cmd(local_tmp, remote_tmp, is_download=True)
+            subprocess.run(scp_cmd, check=True, timeout=25, capture_output=True)
+            subprocess.run(build_ssh_cmd(f"rm -f {remote_tmp}"), check=False, timeout=10)
 
             with Image.open(local_tmp) as im:
                 im = im.convert("RGB")
-                # Hậu kỳ Pillow theo chuẩn Worker 1.1:
+                # Hậu kỳ Pillow chuẩn 100% của Worker 1.1:
                 im = ImageOps.autocontrast(im, cutoff=0.2)
                 im = ImageEnhance.Color(im).enhance(1.15)
                 im = ImageEnhance.Contrast(im).enhance(1.07)
@@ -268,18 +285,14 @@ def generate_sd_image(query: str, slug: str = None):
                 # Gắn bảng tên Art Deco ở đáy ảnh + viền vàng hoàng kim
                 w, h = im.size
                 if AI_TITLE_PLATE:
-                    im = add_title_plate(im, clean_concept, band=34)
+                    im = add_title_plate(im, clean_concept, band=int(h * 0.11))
                 d = ImageDraw.Draw(im)
                 d.rectangle((1, 1, w - 2, h - 2), outline="#C9A227", width=4)
                 d.rectangle((6, 6, w - 7, h - 7), outline="#8A6D17", width=1)
 
-                if (w, h) != (AI_SIZE, AI_SIZE):
-                    im = im.resize((AI_SIZE, AI_SIZE), Image.Resampling.LANCZOS)
-                    w, h = AI_SIZE, AI_SIZE
-
                 buf = io.BytesIO()
                 im.save(buf, format="PNG", optimize=True)
-                print(f"  [SD-Turbo ✨] Masterpiece '{clean_concept}' sinh thành công ({w}x{h})!")
+                print(f"  [SD-Turbo ✨] Masterpiece '{clean_concept}' sinh thành công rực rỡ ({w}x{h})!")
                 return buf.getvalue(), "png", w, h
     except Exception as e:
         print(f"  [SD-Turbo ⚠️] Exception: {e}")
@@ -591,39 +604,32 @@ def make_art_deco_image(slug: str, query: str = None):
 
 
 def sync_to_vm4(local_path: str, storage_key: str):
-    """rsync ảnh từ VM2 sang VM4 /var/lib/bt03/images/ để image-service serve được."""
+    """rsync/scp ảnh từ VM2 sang VM4 /var/lib/bt03/images/ để image-service serve được."""
     if not STORAGE_SSH_TARGET:
         return
-    remote_path = f"{STORAGE_SSH_TARGET}:{STORAGE_REMOTE_DIR}/{storage_key}"
+    remote_subdir = "/".join(storage_key.split("/")[:-1])
+    remote_path = f"{STORAGE_REMOTE_DIR}/{storage_key}"
     try:
-        result = subprocess.run(
-            ["rsync", "-az", "--mkpath",
-             "-e", "ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=10",
-             local_path, remote_path],
-            check=False, timeout=30, capture_output=True
-        )
-        if result.returncode == 0:
-            print(f"  [sync✓] rsync → VM4: {storage_key}")
-        else:
-            err = result.stderr.decode(errors="ignore").strip()
-            print(f"  [sync✗] rsync failed ({err})")
-    except FileNotFoundError:
-        # rsync không có → fallback scp
-        ssh_opts = ["-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
-        remote_subdir = "/".join(storage_key.split("/")[:-1])
+        # Tạo thư mục trên VM4 trước
         subprocess.run(
-            ["ssh"] + ssh_opts + [STORAGE_SSH_TARGET, f"mkdir -p {STORAGE_REMOTE_DIR}/{remote_subdir}"],
+            build_ssh_cmd(f"mkdir -p {STORAGE_REMOTE_DIR}/{remote_subdir}"),
             check=False, timeout=15, capture_output=True
         )
-        result = subprocess.run(
-            ["scp"] + ssh_opts + [local_path, f"{STORAGE_SSH_TARGET}:{STORAGE_REMOTE_DIR}/{storage_key}"],
-            check=False, timeout=30, capture_output=True
-        )
+        # Copy ảnh bằng scp
+        scp_cmd = build_scp_cmd(local_path, remote_path, is_download=False)
+        result = subprocess.run(scp_cmd, check=False, timeout=30, capture_output=True)
         if result.returncode == 0:
             print(f"  [sync✓] scp → VM4: {storage_key}")
         else:
-            err = result.stderr.decode(errors="ignore").strip()
-            print(f"  [sync✗] scp failed ({err})")
+            # Fallback rsync
+            rsync_e = f"sshpass -p '{STORAGE_SSH_PASSWORD}' ssh -o StrictHostKeyChecking=no" if STORAGE_SSH_PASSWORD else "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
+            cmd = ["rsync", "-az", "-e", rsync_e, local_path, f"{STORAGE_SSH_TARGET}:{remote_path}"]
+            res2 = subprocess.run(cmd, check=False, timeout=30, capture_output=True)
+            if res2.returncode == 0:
+                print(f"  [sync✓] rsync → VM4: {storage_key}")
+            else:
+                err = result.stderr.decode(errors="ignore").strip()
+                print(f"  [sync✗] sync failed ({err})")
     except Exception as e:
         print(f"  [sync✗] Exception: {e}")
 
